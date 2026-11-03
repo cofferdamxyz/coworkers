@@ -116,7 +116,14 @@ installer lists it (`scripts/setup.ts`, `BYPASS_PATHS`).
 The Worker checks the Access token itself on every request (`ACCESS_AUD`), so it
 answers 401 even if Access is switched off by mistake.
 
-## 3. The Engineering bot's GitHub App — founder, GitHub
+## 3. The Engineering bot's GitHub App — done 2026-11-03
+
+**Done 2026-11-03** by the founder in the dashboard: App `Cofferdam Engineering Bot`
+(slug `cofferdam-engineering-bot`, App ID 5602071), Issues read and write,
+Metadata read, webhook inactive, installed on `cofferdam` only (checked through
+`GET /orgs/cofferdamxyz/installations`); the private key is on the Worker as
+`GITHUB_APP_PRIVATE_KEY`; the logo is `cofferdam-branding/assets/github/bot-engineering-idle-transparent.png`
+on badge colour `0b1124`. The text below is the record of what was asked for.
 
 github.com → `cofferdamxyz` organisation → Settings → Developer settings →
 GitHub Apps → New GitHub App.
@@ -145,7 +152,9 @@ The Worker narrows every token it mints to the `cofferdam` repository and the
 permission the call needs, and the code refuses any other repository, so a
 wider installation would still not widen what the bot does.
 
-## 4. The deploy file — founder, on the Mac (written 2026-11-03 but for `githubAppId`)
+## 4. The deploy file — done 2026-11-03
+
+**Done:** `coworkers.deploy.json` holds all six fields (App ID added 2026-11-03).
 
 `coworkers.deploy.json` in this folder (ignored by git; upstream's file, read by
 `cloudflare.config.ts`). No account id: the deploy reads it from the `.envrc`.
@@ -195,7 +204,12 @@ credentials → Service Tokens → Create, then the application's policies) does
 the same by hand; then the two `wrangler secret put` commands below take the
 values.
 
-## 6. Secrets — founder, in your own terminal
+## 6. Secrets — done 2026-11-03
+
+**Done:** the Worker holds the five required secrets (`wrangler secret list`
+2026-11-03): the VAPID pair, the GitHub App key, both halves of the Lockkeeper
+token; `AI_GATEWAY_API_TOKEN` not set (optional). The commands below are the
+record and the rotation path.
 
 Each command prompts for its value (or reads the piped file); nothing is echoed.
 The first one asks whether to create the Worker `coworkers`: answer yes, it is a
