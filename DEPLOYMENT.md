@@ -164,7 +164,16 @@ wider installation would still not widen what the bot does.
 `cofferdamOwner` is whose hub gets the Engineering bot, created once on the
 first sign-in.
 
-## 5. The Lockkeeper service token — founder runs one script, a session attaches it
+## 5. The Lockkeeper service token — done 2026-11-03
+
+**Done 2026-11-03:** the founder ran the script below; service token
+`coworkers-engineering` (`06ac2eab…`, expires 2027-11-03) exists and both
+halves are on the Worker; the reusable policy `Lockkeeper Access from the
+Engineering bot` (`c4149d6f…`, Service Auth) is attached to the `lockkeeper`
+application as its third policy, beside the founder's email and the
+workspace's `lockkeeper-claude-code` token. The VAPID pair is on the Worker
+too, so step 6 has only the GitHub App key left. Renew the token before
+2027-11-03 by running the script again and swapping the policy's token id.
 
 After the VAPID commands of step 6 (so the Worker exists), in your own terminal:
 
