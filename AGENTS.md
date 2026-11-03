@@ -36,7 +36,7 @@ and the rest of this file (below the line) is upstream's own guide.
   turns, the policy appended to `instructions`, `ensureCofferdamPreset`),
   `cloudflare.config.ts` (custom domain, no workers.dev, Claude through the
   bots' own `cofferdam-coworkers` gateway, no fallback model, email off, the Cofferdam bindings),
-  `pnpm-workspace.yaml` (pnpm 11's `allowBuilds`), `public/` (icons, manifest),
+  `pnpm-workspace.yaml` (pnpm 11's `allowBuilds`), `public/` (the manifest; the icons and favicon are the Engineering bot's head on the brand gradient, `scripts/make-icons.sh`, so a tab is told apart from cofferdam.xyz),
   `src/routes/__root.tsx` (the installed app's name).
 - `scripts/cofferdam-deploy.ts`: the deploy. `.github/`: CI and Dependabot.
 
