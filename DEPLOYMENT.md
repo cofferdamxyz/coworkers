@@ -59,7 +59,20 @@ Cloudflare dashboard → AI → AI Gateway → `cofferdam-coworkers`:
    overshoot briefly) and the cost is an estimate from token counts and list
    prices; the Console is the record of what was billed.
 
-## 2. Cloudflare Access — founder, Zero Trust dashboard (or a session with an Access token)
+## 2. Cloudflare Access — created 2026-11-03 through the REST API
+
+**Done 2026-11-03** with the founder's `CLOUDFLARE_ACCESS_API_TOKEN` (Access:
+Apps and Policies Write, Organizations Read, Service Tokens Write; whole
+account): reusable policies `coworkers: people` (allow, the founder's email,
+`01c12634…`) and `coworkers: links` (bypass, everyone, `08da8ead…`);
+applications `coworkers` (`6f498b5c…`, 720h) and `coworkers: links`
+(`2cd40e0d…`, the nine paths below, not in the App Launcher). One departure
+from the text below: `coworkers` is pinned to the OS's Google Workspace
+identity provider with auto-redirect, as `cofferdam-os` is, so the sign-in
+goes straight to Google. The AUD tag and team domain are in
+`coworkers.deploy.json` (step 4), written the same day; the file still lacks
+`githubAppId` until step 3. The rest of this section is the record of what was
+asked for.
 
 Two self-hosted applications, both with public hostname destinations (a Worker
 destination refuses WebSocket upgrades, and the bots talk over WebSockets).
@@ -84,7 +97,8 @@ the token afterwards as you prefer; it never enters a repository.
 - `/oauth/authorize`, the consent page an outside agent's sign-in lands on, stays
   behind this application: it is not in the list below.
 - After saving, copy its **Application Audience (AUD) Tag** and the team domain
-  (`<team>.cloudflareaccess.com`, Zero Trust → Settings) for step 4.
+  (`<team>.cloudflareaccess.com`, Zero Trust → Settings) for step 4 (done: both
+  are in the deploy file).
 
 **`coworkers: links`** — what carries its own token, exactly as upstream's
 installer lists it (`scripts/setup.ts`, `BYPASS_PATHS`).
@@ -131,7 +145,7 @@ The Worker narrows every token it mints to the `cofferdam` repository and the
 permission the call needs, and the code refuses any other repository, so a
 wider installation would still not widen what the bot does.
 
-## 4. The deploy file — founder, on the Mac
+## 4. The deploy file — founder, on the Mac (written 2026-11-03 but for `githubAppId`)
 
 `coworkers.deploy.json` in this folder (ignored by git; upstream's file, read by
 `cloudflare.config.ts`). No account id: the deploy reads it from the `.envrc`.
