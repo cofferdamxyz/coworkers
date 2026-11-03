@@ -44,11 +44,20 @@ Cloudflare dashboard → AI → AI Gateway → `cofferdam-coworkers`:
    `wrangler secret put` commands, and this step replaces that one.
 2. **Settings → Spend limits**, before the first routine runs (the budget per
    bot of §3; each bot is one `botId`, there are no per-bot gateway tokens):
-   - rule 1: metadata `botId`, **Split by value**, $8 a day (each bot its own
-     bucket; about one long Sonnet conversation hour);
-   - rule 2: no dimension, $250 a month (the whole deployment).
+   - rule 1: metadata `botId`, **Split by value**, $8 over a **sliding** 24
+     hours (each bot its own bucket; about one long Sonnet conversation hour).
+     Sliding, because the bots run at every hour and a fixed day would let a
+     runaway routine spend $8 before midnight UTC and $8 again after it; a bot
+     blocked at 429 recovers as old spend rolls off.
+   - rule 2: no dimension, $250 over a **fixed** calendar month (the whole
+     deployment). Fixed, because the Anthropic Console invoices and the
+     Billing Monitor reports by calendar month, so the figure and its reset
+     date match theirs.
    Raise them when the Billing Monitor shows the need. A limit reached answers
    429: the bot says the model failed; nothing falls back to another model.
+   Enforcement is eventually consistent (a burst of concurrent calls can
+   overshoot briefly) and the cost is an estimate from token counts and list
+   prices; the Console is the record of what was billed.
 
 ## 2. Cloudflare Access — founder, Zero Trust dashboard
 
