@@ -289,8 +289,10 @@ greeting. Fix in `src/agents/models.ts` (`userFirst`): a short user turn,
 `b2dd7376` (a diagnostic that logged each prompt's roles and part types,
 never content), then `1b4448b4` with the fix. The deploy script's
 optional-secrets file became JSON on the way (`cf` reads a key-less dotenv
-file as invalid once every optional secret exists). Worth sending upstream:
-any Anthropic model on the gateway's unified path hits it.
+file as invalid once every optional secret exists). Sent upstream as
+fayazara/coworkers#21 (branch `fix/anthropic-user-first` off upstream `40e1a9f`,
+the fix and its tests only): any Anthropic model on the gateway's unified path
+hits it. Once it lands, the next upstream merge carries it and our copy goes.
 
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
