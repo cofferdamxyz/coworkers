@@ -1,0 +1,89 @@
+name: CI
+
+# Checks on every push to main and on every pull request, drafts included:
+# delegated sessions open a draft PR at their first push (workspace decision
+# 0013, amended 2026-10-20), so a branch is checked before the founder lands
+# it. Deploys run only from the founder's Mac with the workspace .envrc
+# (scripts/cofferdam-deploy.ts, DEPLOYMENT.md); CI never deploys and holds no
+# Cloudflare token. `cf deploy --dry-run` builds and lists the bindings with
+# no account. `pnpm lint` is left out: upstream's lint fails under
+# TypeScript 7 (AGENTS.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - id: install
+        run: pnpm install --frozen-lockfile
+      - id: test
+        run: pnpm test
+      - id: typecheck
+        run: pnpm typecheck
+      - id: build
+        run: pnpm build
+      - id: dry-run
+        run: pnpm exec cf deploy --prebuilt --dry-run
+
+      # On a pull request, one comment with the result of every step and the
+      # run URL, updated in place on every run. The Cofferdam Development
+      # Tracker in Cofferdam OS reads pull request comments and cannot read
+      # check runs, so this comment is how CI results reach it. Needs only
+      # pull-requests: write on the GITHUB_TOKEN; no other secret.
+      - name: Report the result on the pull request
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          STEP_LABELS: |
+            install=pnpm install --frozen-lockfile
+            test=pnpm test
+            typecheck=pnpm typecheck
+            build=pnpm build
+            dry-run=cf deploy --prebuilt --dry-run
+        with:
+          script: |
+            const marker = `<!-- cofferdam-ci:${context.job} -->`;
+            const steps = JSON.parse(process.env.STEPS);
+            const words = { success: '✅ pass', failure: '❌ fail', cancelled: '🚫 cancelled', skipped: '⏭️ skipped' };
+            const rows = process.env.STEP_LABELS.trim().split('\n').map((line) => {
+              const [id, ...label] = line.split('=');
+              return { label: label.join('='), outcome: steps[id]?.outcome ?? 'skipped' };
+            });
+            const failed = rows.some((row) => row.outcome === 'failure' || row.outcome === 'cancelled');
+            const sha = context.payload.pull_request.head.sha;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              `### CI ${failed ? '❌ failed' : '✅ passed'} · \`${context.job}\` on ${sha.slice(0, 7)}`,
+              '',
+              '| Step | Result |',
+              '| --- | --- |',
+              ...rows.map((row) => `| \`${row.label}\` | ${words[row.outcome] ?? row.outcome} |`),
+              '',
+              `[Run ${context.runId}, attempt ${process.env.GITHUB_RUN_ATTEMPT}](${runUrl})`,
+            ].join('\n');
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number, per_page: 100 });
+            const existing = comments.find((comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number, body });
+            }

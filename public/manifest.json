@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Coworkers",
-  "short_name": "Coworkers",
-  "description": "AI teammates with their own computer and browser.",
+  "name": "Cofferdam Bots",
+  "short_name": "Bots",
+  "description": "Cofferdam Inc.'s bots: the engineering, marketing, security and ops lanes.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

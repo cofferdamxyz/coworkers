@@ -149,6 +149,18 @@ import {
 } from "./skill-sources"
 import { createWebTools } from "./web-tools"
 import type { CrawlInput, QuickEngine } from "./web-tools"
+// Cofferdam: the Engineering preset (rules floor, policy, connections).
+import type { Preset } from "@/cofferdam/config"
+import {
+  ENGINEERING_NAME,
+  ENGINEERING_PROACTIVE,
+  ENGINEERING_ROLE,
+  ENGINEERING_ROUTINE,
+  ENGINEERING_RULES,
+  engineeringPolicy,
+  presetPolicy,
+} from "@/cofferdam/engineering"
+import { isCofferdamConnection } from "@/cofferdam/tools"
 
 // The worker-shell backend hands this class to its Dynamic Worker as a
 // loopback binding (via `ctx.exports`), so it must be exported by the Worker
@@ -645,6 +657,8 @@ export class BotAgent extends Think<Env, BotState> {
   #browser?: BrowserRuntime
   /** App tools a background turn may call without anyone approving. */
   #readOnlyAppTools = new Set<string>()
+  /** Cofferdam: this fork's deployment tools by tool name, with their read flag. */
+  #cofferdamTools = new Map<string, { readOnly: boolean }>()
   #turnStartedAt = 0
   #appStore?: AppStore
   /** The user's Coworkers origin, from the hub each turn. Empty until known. */
@@ -948,6 +962,35 @@ export class BotAgent extends Think<Env, BotState> {
     }
   }
 
+  /** Cofferdam: the preset this bot holds, set once by the UserHub. */
+  private get cofferdamPreset(): Preset | null {
+    return this.ctx.storage.kv.get<Preset>("cofferdam_preset") ?? null
+  }
+
+  /**
+   * Durable Object RPC from UserHub.provisionCofferdamBots, right after
+   * setup() and again on later hub starts (a no-op once applied): the
+   * Engineering bot's name, job, rules, check-ins and its daily routine. Its
+   * rules floor and policy apply from then on, whatever the settings say.
+   */
+  async ensureCofferdamPreset(preset: Preset) {
+    if (this.cofferdamPreset === preset) return
+    this.setState({
+      ...this.state,
+      name: ENGINEERING_NAME,
+      role: ENGINEERING_ROLE,
+      rules: { ...ENGINEERING_RULES },
+    })
+    await this.report({ name: ENGINEERING_NAME, role: ENGINEERING_ROLE })
+    // The routine's cron reads the bot's timezone: set it first.
+    await this.updateProactive(ENGINEERING_PROACTIVE)
+    if (!this.state.routines.some((r) => r.name === ENGINEERING_ROUTINE.name)) {
+      await this.addRoutine(ENGINEERING_ROUTINE)
+    }
+    // Last, so a call cut off before here runs again in full next time.
+    this.ctx.storage.kv.put("cofferdam_preset", preset)
+  }
+
   /** Called once by the UserHub right after the bot is created. */
   async setup(avatar: BotAvatarKind) {
     this.setState({ ...this.state, avatar })
@@ -1187,7 +1230,7 @@ export class BotAgent extends Think<Env, BotState> {
           hub
             .listBots()
             .then((bots) => bots.filter((b) => b.id !== this.botId)),
-          hub.appCatalog(),
+          hub.appCatalog(this.botId),
           hub.appOrigin(),
           // In the per-turn context rather than a context block: it is fresh
           // every turn, and a block's "remind" message breaks approval
@@ -1215,6 +1258,14 @@ export class BotAgent extends Think<Env, BotState> {
         .filter((t) => t.readOnly)
         .map((t) => appToolName(t.connectionId, t.name))
     )
+    this.#cofferdamTools = new Map(
+      catalog.tools
+        .filter((t) => isCofferdamConnection(t.connectionId))
+        .map((t) => [
+          appToolName(t.connectionId, t.name),
+          { readOnly: t.readOnly },
+        ])
+    )
     const context = turnContext(this.state, others, catalog.apps, {
       openItems: this.openItems(),
       delegations: this.openDelegations().map((d) => ({
@@ -1233,7 +1284,10 @@ export class BotAgent extends Think<Env, BotState> {
     })
     return {
       model: this.turnModel(),
-      instructions: `${system}\n\n${context}`,
+      // Cofferdam: the policy goes last, regenerated from code every turn.
+      instructions: this.cofferdamPreset
+        ? `${system}\n\n${context}\n\n${engineeringPolicy()}`
+        : `${system}\n\n${context}`,
       messages: withSentTimes(
         ctx.messages,
         this.messages.filter((m) => m.role === "user").map((m) => metaOf(m).at),
@@ -1291,7 +1345,17 @@ export class BotAgent extends Think<Env, BotState> {
       return "allow"
     const cls = this.#appToolNames.has(toolName) ? "apps" : TOOL_CLASS[toolName]
     // Bots from before a class existed get its default.
-    return cls ? (this.state.rules[cls] ?? DEFAULT_RULES[cls]) : "allow"
+    const own = cls ? (this.state.rules[cls] ?? DEFAULT_RULES[cls]) : "allow"
+    // Cofferdam: a preset bot is never looser than its floor in code.
+    if (this.cofferdamPreset) {
+      return presetPolicy({
+        tool: toolName,
+        cls,
+        own,
+        deploymentTool: this.#cofferdamTools.get(toolName),
+      })
+    }
+    return own
   }
 
   /**
@@ -1305,7 +1369,9 @@ export class BotAgent extends Think<Env, BotState> {
     if (this.#readOnlyAppTools.has(toolName)) return "allow"
     if (
       this.#appToolNames.has(toolName) &&
-      this.state.proactive.appsInBackground === true
+      this.state.proactive.appsInBackground === true &&
+      // Cofferdam: a preset bot's background turns only read.
+      !this.cofferdamPreset
     ) {
       return "allow"
     }
@@ -1388,7 +1454,7 @@ export class BotAgent extends Think<Env, BotState> {
             }
           const hub = await this.hub()
           return unwrapToolResult(
-            await hub.callAppTool(t.connectionId, t.name, args ?? {})
+            await hub.callAppTool(t.connectionId, t.name, args ?? {}, this.botId)
           )
         },
       }),
@@ -1433,7 +1499,8 @@ export class BotAgent extends Think<Env, BotState> {
           const result = await hub.callAppTool(
             t.connectionId,
             t.name,
-            (args ?? {}) as Record<string, unknown>
+            (args ?? {}) as Record<string, unknown>,
+            this.botId
           )
           return unwrapToolResult(result)
         },

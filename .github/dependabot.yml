@@ -1,0 +1,38 @@
+# Dependabot for coworkers (joint 2 of the agentic loop, extended to the fork in joint 3; workspace
+# docs/runbooks/agentic-loop-completion.md §7). Layer 0 of the security lane: GitHub opens the
+# pull requests it can, CI runs on each, Lockkeeper indexes them, the founder lands them. Security
+# updates are switched on per repository in Settings; this file groups them. A Dependabot commit
+# carries no sign-off: the founder lands it with `git cherry-pick -s`, not by fast-forward.
+version: 2
+# Version updates are off here (open-pull-requests-limit: 0), as in cofferdam-os: this is a fork,
+# and its dependencies move with upstream's lockfile when a reviewed upstream commit is merged
+# (AGENTS.md, the pin). A bump of our own would conflict with every such merge. Security updates
+# still open, grouped; the founder checks whether upstream already moved the package first.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 0
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+    commit-message:
+      prefix: deps
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

@@ -33,13 +33,13 @@ export const Route = createRootRoute({
       { name: "theme-color", content: THEME_COLOR },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-title", content: "Coworkers" },
+      { name: "apple-mobile-web-app-title", content: "Bots" },
       // The app draws under the status bar; .app-main pads below it.
       {
         name: "apple-mobile-web-app-status-bar-style",
         content: "black-translucent",
       },
-      { title: "Coworkers" },
+      { title: "Cofferdam Bots" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

@@ -19,6 +19,11 @@ const deploy: Partial<{
   accessAud: string
   emailDomain: string
   emailZoneId: string
+  // Cofferdam: the owner whose hub gets the Engineering bot, and the
+  // Engineering GitHub App's id. Neither is secret; both stay in the
+  // ignored deploy file with the Access values.
+  cofferdamOwner: string
+  githubAppId: string
 }> =
   // The installer packs a release for everyone: never with your values.
   !process.env.COWORKERS_PACKING && DEPLOY_FILE
@@ -26,6 +31,23 @@ const deploy: Partial<{
     : {}
 
 const WORKER_NAME = deploy.name ?? "coworkers"
+
+/**
+ * Cofferdam (workspace docs/runbooks/agentic-loop-completion.md §3). The
+ * account comes from the workspace .envrc (CLOUDFLARE_ACCOUNT_ID, through
+ * `direnv exec`), never from this file: no account id is committed. Models are
+ * Claude through the `default` AI Gateway, whose Anthropic key is a Provider
+ * Key on the gateway; there is no Workers AI fallback, so a failed Claude turn
+ * fails visibly instead of answering on another model. Email stays off until
+ * the workspace rules on OD-15. DEPLOYMENT.md has the rest.
+ */
+const COFFERDAM = {
+  domain: "bots.cofferdam.xyz",
+  model: "anthropic/claude-sonnet-5.5",
+  backgroundModel: "anthropic/claude-haiku-5.5",
+  gateway: "default",
+  lockkeeperUrl: "https://lockkeeper.cofferdam.xyz",
+} as const
 
 /**
  * Cloudflare project config, read by the `cf` CLI and the Cloudflare Vite
@@ -55,6 +77,10 @@ export default defineConfig({
     },
     // Per-version preview hostnames are not covered by the Access app.
     previewUrls: false,
+    // Cofferdam: served on the custom domain only, behind one Access
+    // application; no workers.dev hostname to protect separately.
+    domains: [COFFERDAM.domain],
+    workersDev: false,
     exports: {
       // One per user: bot directory, connections, cross-bot routing.
       UserHub: exports.durableObject({ storage: "sqlite" }),
@@ -85,7 +111,9 @@ export default defineConfig({
       BROWSER_RUN_API_TOKEN: bindings.secret(),
       // Optional: per-bot spend in Settings. Reads AI Gateway logs, which
       // needs the account id and an API token with "AI Gateway Read".
-      ACCOUNT_ID: bindings.text(deploy.accountId ?? ""),
+      ACCOUNT_ID: bindings.text(
+        deploy.accountId ?? process.env.CLOUDFLARE_ACCOUNT_ID ?? ""
+      ),
       AI_GATEWAY_API_TOKEN: bindings.secret(),
       // Dynamic Workers: the bot's shell and sandboxed browser code.
       LOADER: bindings.workerLoader(),
@@ -114,18 +142,17 @@ export default defineConfig({
       // those choices live on the UserHub. A "@cf/..." id runs on Workers
       // AI; a "<provider>/<model>" catalog id is billed with AI Gateway
       // Unified Billing credits or a provider key stored on the gateway.
-      MODEL: bindings.text(
-        deploy.model ?? "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
-      ),
+      MODEL: bindings.text(deploy.model ?? COFFERDAM.model),
       // Workers AI model a turn retries on when a third-party model fails.
-      FALLBACK_MODEL: bindings.text("@cf/deepseek-ai/deepseek-v4.1-flash-1017"),
+      // Cofferdam: none (see COFFERDAM above).
+      FALLBACK_MODEL: bindings.text(""),
       // Optional model for background turns (routines, check-ins, email).
       // Empty uses the chat model.
-      BACKGROUND_MODEL: bindings.text(""),
+      BACKGROUND_MODEL: bindings.text(COFFERDAM.backgroundModel),
       // AI Gateway every model call goes through (logs, analytics, caching,
       // rate and spend limits). Empty uses "default", which Cloudflare
       // creates on first use.
-      AI_GATEWAY_ID: bindings.text(deploy.gateway ?? ""),
+      AI_GATEWAY_ID: bindings.text(deploy.gateway ?? COFFERDAM.gateway),
       // Cloudflare Access in front of the Worker. When both are set, every
       // request must carry a valid Access JWT for this application; without
       // them everyone is the "demo" user. ACCESS_TEAM_DOMAIN is
@@ -135,7 +162,8 @@ export default defineConfig({
       // Domain with Email Routing that forwards to this Worker (catch-all
       // or one rule per bot). Each bot gets <user>.<bot>@EMAIL_DOMAIN.
       // Empty turns inbound email off.
-      EMAIL_DOMAIN: bindings.text(deploy.emailDomain ?? ""),
+      // Cofferdam: off, whatever the deploy file says, until OD-15 is ruled.
+      EMAIL_DOMAIN: bindings.text(""),
       // Optional: lets a bot's email switch create and remove its routing
       // rule. EMAIL_ZONE_ID is the zone that owns EMAIL_DOMAIN (its parent
       // zone for a subdomain); the token needs "Email Routing Rules: Edit"
@@ -152,7 +180,17 @@ export default defineConfig({
       // notifications stay off until they are set.
       VAPID_PUBLIC_KEY: bindings.secret(),
       VAPID_PRIVATE_KEY: bindings.secret(),
-      VAPID_SUBJECT: bindings.text("mailto:bots@example.com"),
+      VAPID_SUBJECT: bindings.text(`https://${COFFERDAM.domain}`),
+      // Cofferdam: the Engineering bot (src/cofferdam/). Its hub owner, its
+      // GitHub App (id here, private key a secret) and its Lockkeeper Access
+      // service token (both halves secrets). Empty secrets leave the bot
+      // without that connection, never without its rules.
+      COFFERDAM_OWNER: bindings.text(deploy.cofferdamOwner ?? ""),
+      GITHUB_APP_ID: bindings.text(deploy.githubAppId ?? ""),
+      GITHUB_APP_PRIVATE_KEY: bindings.secret(),
+      LOCKKEEPER_URL: bindings.text(COFFERDAM.lockkeeperUrl),
+      LOCKKEEPER_ACCESS_CLIENT_ID: bindings.secret(),
+      LOCKKEEPER_ACCESS_CLIENT_SECRET: bindings.secret(),
     },
   },
 })

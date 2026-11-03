@@ -2,6 +2,20 @@ packages:
   - "."
   - "installer"
 
+# Cofferdam: pnpm 11 reads allowBuilds, not onlyBuiltDependencies (kept below
+# for upstream, which installs with pnpm 10). The same packages as upstream's
+# list may run their build scripts; the rest were reviewed and refused, so
+# `pnpm install` exits 0 under pnpm 11.
+allowBuilds:
+  esbuild: true
+  msw: true
+  sharp: true
+  unrs-resolver: true
+  workerd: true
+  '@mongodb-js/zstd': false
+  core-js-pure: false
+  node-liblzma: false
+
 onlyBuiltDependencies:
   - esbuild
   - msw
