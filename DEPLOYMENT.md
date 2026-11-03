@@ -164,14 +164,27 @@ wider installation would still not widen what the bot does.
 `cofferdamOwner` is whose hub gets the Engineering bot, created once on the
 first sign-in.
 
-## 5. The Lockkeeper service token — founder, Zero Trust dashboard
+## 5. The Lockkeeper service token — founder runs one script, a session attaches it
 
-Access → Service credentials → Service Tokens → Create: name
-`coworkers-engineering`, duration one year. Then open the Lockkeeper Access
-application (`lockkeeper.cofferdam.xyz`) and add the token to its Service Auth
-policy, beside the workspace's own token. A separate token can be revoked
-alone, and only the Engineering bot holds it. Keep the dashboard tab open: its
-Client ID and Client Secret go into step 6, and the secret is shown once.
+After the VAPID commands of step 6 (so the Worker exists), in your own terminal:
+
+```bash
+cd /Users/hoff/Development/Cofferdam/coworkers && direnv exec .. sh scripts/lockkeeper-service-token.sh
+```
+
+It creates the Access service token `coworkers-engineering` (one year) with
+`CLOUDFLARE_ACCESS_API_TOKEN` and pipes its client id and client secret
+straight into `wrangler secret put LOCKKEEPER_ACCESS_CLIENT_ID` and
+`LOCKKEEPER_ACCESS_CLIENT_SECRET`; the secret is returned once and is never
+printed. It ends by printing the token's **id**: give that to the session, which
+adds a reusable policy `Lockkeeper Access from the Engineering bot`
+(Service Auth, that token) to the Lockkeeper Access application
+(`lockkeeper.cofferdam.xyz`), beside the workspace's own `Lockkeeper Access
+from Claude Code`. A separate token and policy can be revoked alone, and only
+the Engineering bot holds it. The dashboard route (Access → Service
+credentials → Service Tokens → Create, then the application's policies) does
+the same by hand; then the two `wrangler secret put` commands below take the
+values.
 
 ## 6. Secrets — founder, in your own terminal
 
@@ -208,7 +221,7 @@ direnv exec .. pnpm dlx wrangler@4.95.0 secret put GITHUB_APP_PRIVATE_KEY --name
 rm ~/Downloads/cofferdam-engineering-bot.*.private-key.pem
 ```
 
-The Lockkeeper service token, both halves:
+The Lockkeeper service token, both halves (already put if the step 5 script ran):
 
 ```bash
 direnv exec .. pnpm dlx wrangler@4.95.0 secret put LOCKKEEPER_ACCESS_CLIENT_ID --name coworkers
