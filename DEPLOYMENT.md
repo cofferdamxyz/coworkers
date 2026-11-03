@@ -292,6 +292,15 @@ optional-secrets file became JSON on the way (`cf` reads a key-less dotenv
 file as invalid once every optional secret exists). Worth sending upstream:
 any Anthropic model on the gateway's unified path hits it.
 
+**Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
+hub created the Engineering bot on first sign-in, and "What is in flight?"
+came back with Lockkeeper's branches, pull requests, the Dependabot queue and
+the four daily issues. The gateway log shows the two Sonnet calls of that turn
+with the metadata `bot=Engineering`, `botId=b9b03875`, `turn=chat`, about
+25–30k input tokens each (the 65 tools and the policy) and $0.05–0.07 a call:
+the $8-a-day bucket is roughly 120 chat calls. Not yet: the phone install, a
+background routine, and Dependabot alerts on the fork.
+
 From this folder on the Mac:
 
 ```bash
