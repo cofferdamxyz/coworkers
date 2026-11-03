@@ -279,6 +279,19 @@ kept (five set, three sent empty). The gateway's Anthropic Provider Key and
 spend limits were still unset at deploy time: the site opens, a bot's first
 turn fails until step 1 is done.
 
+Same evening, key and limits set: the first chat answered `Format conversion
+failed: No compatible input messages found` (AI Gateway code 7003) while the
+Models page's test passed. Replayed through the gateway: the conversion of a
+chat-completions body into Anthropic's format fails whenever the first
+non-system message is the assistant's, and every bot opens with its own
+greeting. Fix in `src/agents/models.ts` (`userFirst`): a short user turn,
+`(Chat opened.)`, in front of a history that opens with the bot. Versions:
+`b2dd7376` (a diagnostic that logged each prompt's roles and part types,
+never content), then `1b4448b4` with the fix. The deploy script's
+optional-secrets file became JSON on the way (`cf` reads a key-less dotenv
+file as invalid once every optional secret exists). Worth sending upstream:
+any Anthropic model on the gateway's unified path hits it.
+
 From this folder on the Mac:
 
 ```bash
