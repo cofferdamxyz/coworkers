@@ -15,27 +15,34 @@ own terminal, never in this file, a chat or a command argument.
 | Upstream pin | `fayazara/coworkers@40e1a9fcb923b5182248e907648383ca0273ec53` (2026-11-02) |
 | Durable Objects | `UserHub`, `BotAgent`, `AppLive`, `OAuthStore`, `EmailDirectory` (SQLite), created by `cf deploy` from the Worker's exports |
 | Other bindings | `AI` (Workers AI and AI Gateway), `BROWSER` (Browser Run), `LOADER` (Dynamic Workers), `SEND_EMAIL` (unused: email is off) |
-| Models | Claude through the `default` AI Gateway: `anthropic/claude-sonnet-5.5` for conversations, `anthropic/claude-haiku-5.5` for routines, check-ins and webhooks; no Workers AI fallback |
+| Models | Claude through the bots' own AI Gateway, `cofferdam-coworkers`: `anthropic/claude-sonnet-5.5` for conversations, `anthropic/claude-haiku-5.5` for routines, check-ins and webhooks; no Workers AI fallback |
 | Email | off (`EMAIL_DOMAIN` empty) until OD-15 is ruled |
 | Deploy | `scripts/cofferdam-deploy.ts`, upstream's `cf deploy` under the workspace `.envrc`, from the Mac only |
 
-## 1. AI Gateway `default` — founder, dashboard
+## 1. AI Gateway `cofferdam-coworkers` — created 2026-11-03; the key and the limits are the founder's
 
-Cloudflare dashboard → AI → AI Gateway → `default` (create it with that name if
-it is not listed; nothing of the plane uses it, the plane's calls go through the
-strict and documents gateways).
+The bots have a gateway of their own, `cofferdam-coworkers`, apart from
+`default` (Lockkeeper and the OS) and the plane's `cofferdam-strict` and
+`cofferdam-documents`, so their spend, logs and limits are read on their own.
+Created 2026-11-03 through the REST API
+(`POST /accounts/{account}/ai-gateway/gateways`, with the workspace's AI
+Gateway token; Wrangler has no AI Gateway command) with authentication on,
+logs on, no cache, no rate limit and **Require provider credentials** on
+(`byok_only`), so a missing key fails instead of drawing on Unified Billing
+credits. The Worker's `AI` binding satisfies the gateway's authentication; no
+gateway token is issued. Logs are on for upstream's per-bot Spend page and the
+Ops bot; each bot's calls carry the metadata `bot`, `botId` and `turn` (`chat`
+or `background`).
 
-1. **Provider Keys → Add API Key → Anthropic**: the Console key, alias `default`.
-   This is where "the Anthropic key the gateway fronts" goes. The Worker calls
-   Claude through its `AI` binding and the gateway adds the key, so a Worker
-   secret holding it would never be read; the plan's §3 listed it with the
+Cloudflare dashboard → AI → AI Gateway → `cofferdam-coworkers`:
+
+1. **Provider Keys → Add API Key → Anthropic**: the Console key, alias `default`
+   (the alias the `AI` binding consults; it is not the gateway's name). This is
+   where "the Anthropic key the gateway fronts" goes. The Worker calls Claude
+   through its `AI` binding and the gateway adds the key, so a Worker secret
+   holding it would never be read; the plan's §3 listed it with the
    `wrangler secret put` commands, and this step replaces that one.
-2. **Settings → Require provider credentials: on**, so a missing key fails
-   instead of drawing on Unified Billing credits.
-3. **Settings → Logs: on.** Upstream's per-bot Spend page and the Ops bot read
-   them. Each bot's calls carry the metadata `bot`, `botId` and `turn`
-   (`chat` or `background`).
-4. **Settings → Spend limits**, before the first routine runs (the budget per
+2. **Settings → Spend limits**, before the first routine runs (the budget per
    bot of §3; each bot is one `botId`, there are no per-bot gateway tokens):
    - rule 1: metadata `botId`, **Split by value**, $8 a day (each bot its own
      bucket; about one long Sonnet conversation hour);
@@ -111,7 +118,7 @@ wider installation would still not widen what the bot does.
 ```json
 {
   "name": "coworkers",
-  "gateway": "default",
+  "gateway": "cofferdam-coworkers",
   "accessTeamDomain": "<team>.cloudflareaccess.com",
   "accessAud": "<the coworkers application's AUD tag>",
   "cofferdamOwner": "<your Cofferdam email, the one Access admits>",

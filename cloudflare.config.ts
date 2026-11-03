@@ -36,16 +36,18 @@ const WORKER_NAME = deploy.name ?? "coworkers"
  * Cofferdam (workspace docs/runbooks/agentic-loop-completion.md §3). The
  * account comes from the workspace .envrc (CLOUDFLARE_ACCOUNT_ID, through
  * `direnv exec`), never from this file: no account id is committed. Models are
- * Claude through the `default` AI Gateway, whose Anthropic key is a Provider
- * Key on the gateway; there is no Workers AI fallback, so a failed Claude turn
- * fails visibly instead of answering on another model. Email stays off until
+ * Claude through the bots' own AI Gateway, `cofferdam-coworkers` (apart from
+ * `default`, which Lockkeeper and the OS use, and the plane's two), whose
+ * Anthropic key is a Provider Key on the gateway; there is no Workers AI
+ * fallback, so a failed Claude turn fails visibly instead of answering on
+ * another model. Email stays off until
  * the workspace rules on OD-15. DEPLOYMENT.md has the rest.
  */
 const COFFERDAM = {
   domain: "bots.cofferdam.xyz",
   model: "anthropic/claude-sonnet-5.5",
   backgroundModel: "anthropic/claude-haiku-5.5",
-  gateway: "default",
+  gateway: "cofferdam-coworkers",
   lockkeeperUrl: "https://lockkeeper.cofferdam.xyz",
 } as const
 
