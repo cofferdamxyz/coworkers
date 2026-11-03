@@ -270,7 +270,14 @@ direnv exec .. pnpm dlx wrangler@4.95.0 secret list --name coworkers
 Not set, on purpose: `BROWSER_RUN_API_TOKEN` (the crawl tool, later if wanted)
 and `EMAIL_ROUTING_API_TOKEN` (email is off). The deploy sends those two empty.
 
-## 7. Deploy — a session, after you say "deploy"
+## 7. Deploy — first deployed 2026-11-03
+
+**Record.** 2026-11-03, from the Mac, `scripts/cofferdam-deploy.ts`: version
+`a52c10a1-a2f9-4bc2-93cf-fdd6c48c542b`, custom domain `bots.cofferdam.xyz`
+(DNS live within a minute), gateway `cofferdam-coworkers`, the eight secrets
+kept (five set, three sent empty). The gateway's Anthropic Provider Key and
+spend limits were still unset at deploy time: the site opens, a bot's first
+turn fails until step 1 is done.
 
 From this folder on the Mac:
 
