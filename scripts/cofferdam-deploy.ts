@@ -135,9 +135,15 @@ if (dryRun) {
 } else {
   const empty = OPTIONAL.filter((s) => !present.has(s))
   dir = mkdtempSync(join(tmpdir(), "coworkers-"))
-  const file = join(dir, "optional-empty.env")
-  // Names with empty values only, or nothing: no secret is in this file.
-  writeFileSync(file, empty.map((s) => `${s}=\n`).join(""), { mode: 0o600 })
+  const file = join(dir, "optional-empty.json")
+  // Names with empty values only, or `{}` once every optional secret exists:
+  // no secret is in this file. JSON, because cf reads a dotenv file with no
+  // keys as invalid (found on the second deploy, 2026-11-03).
+  writeFileSync(
+    file,
+    JSON.stringify(Object.fromEntries(empty.map((s) => [s, ""]))),
+    { mode: 0o600 }
+  )
   args.push("--secrets-file", file)
 }
 const deployed = run("pnpm", args)
