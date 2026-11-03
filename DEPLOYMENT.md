@@ -59,10 +59,22 @@ Cloudflare dashboard → AI → AI Gateway → `cofferdam-coworkers`:
    overshoot briefly) and the cost is an estimate from token counts and list
    prices; the Console is the record of what was billed.
 
-## 2. Cloudflare Access — founder, Zero Trust dashboard
+## 2. Cloudflare Access — founder, Zero Trust dashboard (or a session with an Access token)
 
 Two self-hosted applications, both with public hostname destinations (a Worker
 destination refuses WebSocket upgrades, and the bots talk over WebSockets).
+
+The workspace deploy token cannot write them (tried 2026-11-03:
+`POST /accounts/{account}/access/policies` answers `auth.forbidden`). A session
+can create both through the REST API, as upstream's installer does through the
+`cf` CLI, with an API token scoped to the Cofferdam account that holds
+**Access: Apps and Policies — Edit** and **Access: Organizations, Identity
+Providers, and Groups — Read** (add **Access: Service Tokens — Edit** for step
+5), exported in the workspace `.envrc` as `CLOUDFLARE_ACCESS_API_TOKEN`; two
+reusable policies (`coworkers: people`, allow, the founder's email;
+`coworkers: links`, bypass, everyone), then the two applications below with
+`policies: [<id>]`, the AUD tag read from the create response. Delete or keep
+the token afterwards as you prefer; it never enters a repository.
 
 **`coworkers`** — the site.
 - Destination: `bots.cofferdam.xyz`, no path.
