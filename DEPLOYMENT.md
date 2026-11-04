@@ -327,6 +327,14 @@ rebase`, and a preset routine changed in code now reaches the existing bot on
 the next hub start (the Security triage had kept its first prompt; it takes
 the current one when the founder next opens the site).
 
+**Deployed 2026-11-04 15:39 UTC** as `c57ac86b` from `main` at `135a4f9`: the
+Dependabot patch (Dependencies, below; 60 of 62 open alerts) with the brand
+session's link accent (`29ad8d7`, `9b312f8`). Tests 223 passed on that commit.
+The first try, on Node 25.7, failed with `fetch failed` on the script upload
+after the assets went up (nothing went live); the retry on Node 24.19
+deployed. Checked after: `/` redirects to Access,
+`/manifest.webmanifest` and `/sw.js` answer 200.
+
 **2026-11-04, the rebase tool removed:** with Pull requests write the bot's
 comment posted on `lockkeeper#5` at 13:51:03 UTC as
 `cofferdam-security-bot[bot]`, and Dependabot answered four seconds later
@@ -408,8 +416,8 @@ from Lockkeeper.
 repos/cofferdamxyz/coworkers/automated-security-fixes`), after the Security
 bot found three critical alerts with no pull request: `@tanstack/react-start`
 (direct, 1.168.60), `@tanstack/start-server-core` and `seroval` (transitive).
-Patched the same day in the fork (Dependencies, below), committed and not
-deployed until the founder runs step 7.
+Patched the same day in the fork (Dependencies, below), deployed as
+`c57ac86b`.
 
 - Settings → Code security: **Dependabot alerts** and **Dependabot security
   updates** on (GitHub leaves both off on a fork). `.github/dependabot.yml`
