@@ -11,14 +11,16 @@ import {
 import { appJwt, pemToPkcs8 } from "./github-app"
 import { callLockkeeper } from "./lockkeeper"
 import {
-  GITHUB_CONNECTION,
-  LOCKKEEPER_CONNECTION,
+  closeRefusal,
   cofferdamCatalog,
   cofferdamToolReadOnly,
   dispatchRefusal,
   forbiddenLabels,
+  GITHUB_CONNECTION,
   hasMandate,
+  LOCKKEEPER_CONNECTION,
   namedRepository,
+  reportedPullRequest,
 } from "./tools"
 
 const MANDATE = `Fix the overlay.
@@ -301,5 +303,45 @@ describe("Engineering tool floor", () => {
         [waiting]
       )
     ).toMatch(/#7/)
+  })
+})
+
+describe("close_issue gate", () => {
+  const REPORT = {
+    body: "**Report**\n- State: `waiting`\n- Pull request: https://github.com/cofferdamxyz/cofferdam-branding/pull/4 (draft)\n",
+  }
+  const waiting = { state: "open", labels: labels("engineering", "waiting") }
+  const landed =
+    "Lockkeeper: cofferdamxyz/cofferdam-branding (main at 9e0887b, read 1 min ago)\nNothing in flight near your work.\nLanded on main recently (3 files):\n- 9e0887b Merge pull request #4 from cofferdamxyz/claude/29-merge-proto-guard\n- b79c6a4 fix: skip prototype keys\nAwareness, not a lock."
+  const stillOpen =
+    "Lockkeeper: cofferdamxyz/cofferdam-branding (main at e979b62, read 1 min ago)\nIn flight near your work:\n- branch `claude/29-merge-proto-guard`: PR #4 (draft) \"Fix\", 1 ahead, 0 behind\nAwareness, not a lock."
+
+  it("reads the pull request from the latest report", () => {
+    expect(reportedPullRequest([{ body: "hi" }, REPORT])).toEqual({
+      repo: "cofferdam-branding",
+      number: 4,
+    })
+    expect(reportedPullRequest([{ body: "**Report**\n- Pull request: none" }])).toBeNull()
+    expect(
+      reportedPullRequest([{ body: "**Report**\n- Pull request: https://github.com/other/x/pull/1" }])
+    ).toBeNull()
+  })
+
+  it("closes only a waiting issue whose pull request landed", () => {
+    expect(closeRefusal(waiting, [REPORT], landed, null)).toBeNull()
+    expect(closeRefusal(waiting, [REPORT], landed, { state: "closed", merged: true })).toBeNull()
+  })
+
+  it("refuses while the pull request is in flight or unmerged", () => {
+    expect(closeRefusal(waiting, [REPORT], stillOpen, null)).toMatch(/in flight/)
+    expect(closeRefusal(waiting, [REPORT], landed, { state: "closed", merged: false })).toMatch(/not merged/)
+    expect(closeRefusal(waiting, [REPORT], "Lockkeeper: x\nNothing in flight near your work.", null)).toMatch(/not show/)
+  })
+
+  it("refuses without waiting, without a report, on closed issues and pull requests", () => {
+    expect(closeRefusal({ state: "open", labels: labels("engineering", "dispatched") }, [REPORT], landed, null)).toMatch(/waiting/)
+    expect(closeRefusal(waiting, [{ body: "no report" }], landed, null)).toMatch(/names a pull request/)
+    expect(closeRefusal({ ...waiting, state: "closed" }, [REPORT], landed, null)).toMatch(/already closed/)
+    expect(closeRefusal({ ...waiting, pull_request: {} }, [REPORT], landed, null)).toMatch(/pull request, not an issue/)
   })
 })

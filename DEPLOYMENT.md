@@ -294,6 +294,8 @@ fayazara/coworkers#21 (branch `fix/anthropic-user-first` off upstream `40e1a9f`,
 the fix and its tests only): any Anthropic model on the gateway's unified path
 hits it. Once it lands, the next upstream merge carries it and our copy goes.
 
+**Deployed again 2026-11-03** as `a014d4fc` (the app icons) and `68e3c064` (the Engineering bot's `close_issue` tool: ask-first, refuses unless the issue is in `waiting`, its report names the pull request, and Lockkeeper shows it merged and out of flight; GitHub's public view of the pull request must agree when readable).
+
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
 came back with Lockkeeper's branches, pull requests, the Dependabot queue and

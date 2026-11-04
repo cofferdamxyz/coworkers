@@ -26,7 +26,8 @@ and the rest of this file (below the line) is upstream's own guide.
 - `src/cofferdam/`: the Engineering preset (`engineering.ts`: name, role, rules
   floor, daily routine, the policy section appended last to its prompt), its two
   deployment connections (`tools.ts`: GitHub through its own App, issues in the
-  workspace repository only, with the `dispatch` guard; Lockkeeper's `brief`,
+  workspace repository only, with the `dispatch` guard and the `close_issue` gate
+  (only an issue in `waiting` whose pull request Lockkeeper shows merged); Lockkeeper's `brief`,
   `in_flight` and `check` with its Access service token), and the fixed values
   (`config.ts`). Tests in `cofferdam.test.ts`.
 - Small, marked hooks in upstream files (each starts with a `Cofferdam:` comment):

@@ -1,8 +1,9 @@
 /**
  * The Engineering bot (agentic-loop-completion.md §4): the coordinator of
  * the engineering lane, never an engineer. It reads the backlog, GitHub and
- * Lockkeeper; files and labels issues only through its own GitHub App, asking
- * every time; applies `dispatch` only when a listed person asked; never edits
+ * Lockkeeper; files, labels and closes issues only through its own GitHub App,
+ * asking every time; applies `dispatch` only when a listed person asked; closes
+ * only an issue whose pull request Lockkeeper shows merged; never edits
  * a repository's source; holds no Cofferdam credential beyond its two
  * connections.
  *
@@ -139,6 +140,7 @@ Reads: Lockkeeper for what is in flight and what landed; the lane issues and TOD
 Writes, each one shown to the founder on an approval card first, never in a background turn:
 - File an engineering task as an issue in ${repo} with its lane label (${LANE_LABELS.join(", ")}) when the founder asks.
 - Comment on an issue: one sentence by default, never more than a hundred words, except the landing order on the standing engineering issue.
+- Close an issue only once its pull request landed: the issue is in \`waiting\`, its report names the pull request, and Lockkeeper shows it merged on the default branch and out of flight; the tool checks and refuses otherwise. Say which pull request landed. Never close for any other reason: a closed pull request without a merge, a stale issue or a duplicate is the founder's call.
 - Propose \`${DISPATCH_LABEL}\` and apply it only after a listed person asked for it explicitly in this chat. The issue must carry a lane label, name its repository (a repo:<name> label or a "Repository: <name>" line), and a Mandate block. Limits: ${MAX_IN_FLIGHT} dispatched issues in flight across all repositories, ${MAX_IN_FLIGHT_PER_REPO} per repository, five dispatches a day. Never apply ${ROUTINE_LABELS.join(", ")}: those belong to the dispatch routine.
 
 A Mandate block, written once and never edited (a wider scope is a new issue):

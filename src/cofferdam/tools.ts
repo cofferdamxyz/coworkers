@@ -137,6 +137,16 @@ const GITHUB_TOOLS: ToolDef[] = [
     },
     readOnly: false,
   },
+  {
+    name: "close_issue",
+    description: `Close an issue in ${REPO} whose pull request landed: the issue is in \`waiting\`, its latest report names the pull request, and Lockkeeper shows it merged (landed on the default branch, no longer in flight). Never for any other reason. Always asks the user.`,
+    inputSchema: {
+      type: "object",
+      properties: { number: issueNumber },
+      required: ["number"],
+    },
+    readOnly: false,
+  },
 ]
 
 const LOCKKEEPER_TOOL_DEFS: ToolDef[] = [
@@ -365,6 +375,60 @@ export function forbiddenLabels(labels: string[], allowDispatch: boolean) {
   )
 }
 
+/** The pull request a dispatched session's report names, or null. */
+export function reportedPullRequest(comments: { body?: string | null }[]) {
+  const report = [...comments]
+    .reverse()
+    .find((c) => /\*\*Report\*\*/.test(c.body ?? ""))
+  const m =
+    /Pull request:[^\n]*?https:\/\/github\.com\/cofferdamxyz\/([\w.-]+)\/pull\/(\d+)/i.exec(
+      report?.body ?? ""
+    )
+  if (!m) return null
+  const repo = m[1]
+  if (!(REPOSITORIES as readonly string[]).includes(repo)) return null
+  return { repo, number: Number(m[2]) }
+}
+
+/**
+ * Why an issue may not be closed, or null when it may. The bot closes an
+ * issue only when its pull request landed, and never on its own reading of
+ * a comment: `brief` is Lockkeeper's text for the pull request's repository
+ * (the branch must be out of flight and the merge on the default branch),
+ * and `pr` is GitHub's own view of the pull request when it could be read
+ * (a public repository), which must agree.
+ */
+export function closeRefusal(
+  issue: Pick<Issue, "state" | "labels" | "pull_request">,
+  comments: { body?: string | null }[],
+  brief: string,
+  pr: { state: string; merged: boolean } | null
+): string | null {
+  if (issue.pull_request) return "That is a pull request, not an issue."
+  if (issue.state !== "open") return "The issue is already closed."
+  if (!issue.labels.some((l) => l.name === "waiting")) {
+    return "The issue is not in `waiting`: no pull request is up for it, or a session still holds it."
+  }
+  const target = reportedPullRequest(comments)
+  if (!target) {
+    return "No report on the issue names a pull request."
+  }
+  const tag = `#${target.number}`
+  const inFlight = new RegExp(`PR ${tag}\\b`).test(brief)
+  if (inFlight) return `${target.repo}${tag} is still in flight.`
+  const landed = new RegExp(
+    `^Landed on [^\\n]*\\n(?:- [^\\n]*\\n?)*?- [^\\n]*(?:pull request ${tag}\\b|\\(${tag}\\))`,
+    "m"
+  ).test(brief)
+  if (pr && !pr.merged) {
+    return `${target.repo}${tag} is ${pr.state}, not merged.`
+  }
+  if (!landed && !pr?.merged) {
+    return `Lockkeeper does not show ${target.repo}${tag} landed on the default branch yet.`
+  }
+  return null
+}
+
 async function openIssuesLabelled(env: CofferdamEnv, label: string) {
   return repoApi<Issue[]>(
     env,
@@ -560,6 +624,63 @@ async function callGitHub(
         "labelling"
       )
       return { number: n, labels: result.map((l) => l.name) }
+    }
+    case "close_issue": {
+      const n = num(args, "number")
+      const issue = await repoApi<Issue>(
+        env,
+        { issues: "read" },
+        `/issues/${n}`,
+        {},
+        "reading the issue"
+      )
+      const comments = await repoApi<Comment[]>(
+        env,
+        { issues: "read" },
+        `/issues/${n}/comments?per_page=100`,
+        {},
+        "reading the comments"
+      )
+      const target = reportedPullRequest(comments)
+      let brief = ""
+      let pr: { state: string; merged: boolean } | null = null
+      if (target) {
+        brief = await callLockkeeper(env, "brief", {
+          repo: target.repo,
+          goal: issue.title,
+        })
+        // GitHub's own view, readable without a token on a public
+        // repository; a private one answers 404 and Lockkeeper decides.
+        try {
+          const res = await fetch(
+            `https://api.github.com/repos/cofferdamxyz/${target.repo}/pulls/${target.number}`,
+            { headers: { accept: "application/vnd.github+json", "user-agent": "cofferdam-coworkers" } }
+          )
+          if (res.ok) {
+            const data = (await res.json()) as { state: string; merged: boolean }
+            pr = { state: data.state, merged: data.merged === true }
+          }
+        } catch {
+          pr = null
+        }
+      }
+      const refusal = closeRefusal(issue, comments, brief, pr)
+      if (refusal) throw new Error(`Not closed: ${refusal}`)
+      const closed = await repoApi<Issue>(
+        env,
+        { issues: "write" },
+        `/issues/${n}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ state: "closed", state_reason: "completed" }),
+        },
+        "closing the issue"
+      )
+      return {
+        closed: true,
+        pullRequest: `cofferdamxyz/${target!.repo}#${target!.number}`,
+        ...summary(closed),
+      }
     }
     default:
       throw new Error(`No GitHub tool named ${name}.`)
