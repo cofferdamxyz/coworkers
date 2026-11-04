@@ -16,6 +16,18 @@ allowBuilds:
   core-js-pure: false
   node-liblzma: false
 
+# Cofferdam: security overrides (Dependabot, 2026-11-04). Each one lifts a
+# package that a parent pins below its fix, and only under that parent, as a
+# floor (a caret range, so a later pin never goes back down); drop the line
+# once upstream's own bump reaches the fixed version.
+# - miniflare (the cf CLI and the Vite plugin, build and dev only) pins
+#   undici 7.29.0 and sharp 0.35.4.
+# - @cloudflare/config (the same toolchain) pins zod 4.4.3.
+overrides:
+  'miniflare>undici': ^7.30.1
+  'miniflare>sharp': ^0.35.5
+  '@cloudflare/config>zod': ^4.6.7
+
 onlyBuiltDependencies:
   - esbuild
   - msw

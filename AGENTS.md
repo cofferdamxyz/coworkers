@@ -54,7 +54,8 @@ and the rest of this file (below the line) is upstream's own guide.
   by `routineKey`),
   `cloudflare.config.ts` (custom domain, no workers.dev, Claude through the
   bots' own `cofferdam-coworkers` gateway, no fallback model, email off, the Cofferdam bindings),
-  `pnpm-workspace.yaml` (pnpm 11's `allowBuilds`), `public/` (the manifest; the icons and favicon are the Engineering bot's head on the brand gradient, `scripts/make-icons.sh`, so a tab is told apart from cofferdam.xyz),
+  `pnpm-workspace.yaml` (pnpm 11's `allowBuilds`, and the security
+  `overrides` recorded in `DEPLOYMENT.md`, Dependencies), `public/` (the manifest; the icons and favicon are the Engineering bot's head on the brand gradient, `scripts/make-icons.sh`, so a tab is told apart from cofferdam.xyz),
   `src/routes/__root.tsx` (the installed app's name), `src/styles.css` (imports
   the brand layer), `src/lib/theme.ts` (the brand's dark `web-bg` as the browser
   chrome, and the `.dark` class its generated sheet keys on), `public/sw.js` (the

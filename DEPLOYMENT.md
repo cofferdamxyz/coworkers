@@ -408,6 +408,8 @@ from Lockkeeper.
 repos/cofferdamxyz/coworkers/automated-security-fixes`), after the Security
 bot found three critical alerts with no pull request: `@tanstack/react-start`
 (direct, 1.168.60), `@tanstack/start-server-core` and `seroval` (transitive).
+Patched the same day in the fork (Dependencies, below), committed and not
+deployed until the founder runs step 7.
 
 - Settings → Code security: **Dependabot alerts** and **Dependabot security
   updates** on (GitHub leaves both off on a fork). `.github/dependabot.yml`
@@ -546,6 +548,41 @@ Then run the tests (`brand.test.ts` checks the copy and the mapping), commit
 here and deploy (step 7). If the dark `web-bg` changed, `docs/theming.md` lists
 what follows `--brand-surface` (`THEME_COLORS`, the manifest, `public/sw.js`,
 `scripts/make-dark-splashes.sh`).
+
+## Dependencies
+
+The fork moves upstream's code only by reviewed merges (the pin above). Security
+bumps are the exception: a dependency fix that upstream has not taken yet lands
+here as a fork commit on `package.json`, `installer/package.json`,
+`pnpm-workspace.yaml` and `pnpm-lock.yaml` only, never a major version, and is
+deployed like any other change (step 7). In order of preference: raise a direct
+dependency to its fixed patch inside its own range, let pnpm move a transitive
+inside its parents' ranges (`pnpm update -r --depth Infinity <name>`,
+`pnpm dedupe`), and only then an override in `pnpm-workspace.yaml` scoped to the
+parent that pins the old version (`parent>child`), as a caret floor so a later
+pin never goes back down. Each override says why; drop it once upstream's own
+bump carries the fix. A peer that pnpm installed by itself (`solid-js` here)
+moves with neither `update` nor an override; `pnpm --filter coworkers add -D
+<name>@^<fixed>` then `pnpm --filter coworkers remove <name>` re-resolves it
+and leaves `package.json` as it was. Run with Node 24.19 and pnpm 11.7.0, the
+versions CI uses (nvm's Node 24.19 carries pnpm 12, which writes a different
+lockfile).
+
+**2026-11-04, the Security bot's sweep** (upstream still at `40e1a9f`, no fix
+there): three criticals and every runtime high closed, 60 of 62 open alerts.
+Direct: `@tanstack/react-start` 1.168.59 → 1.168.61 (with
+`@tanstack/react-router` 1.170.42 and `@tanstack/router-plugin` 1.168.43, so
+Start and the app share one router), `@tanstack/react-devtools` 0.10.14,
+`zod` 4.6.7, `vite` 8.3.5, `postal-mime` 4.0.11. Transitive inside their
+ranges: `@tanstack/start-server-core` 1.169.40, `seroval` 1.7.7 (TanStack) and
+1.6.12 (devtools, through `solid-js` 1.9.18), MCP `sdk` 1.32.1 and `client`
+2.3.1 (the versions `agents` 0.30 asks for), `body-parser` 2.4.0,
+`source-map-js` 1.2.2, `launch-editor` 2.14.2, `undici` 8.12.3 (jsdom), and
+`@cloudflare/codemode` 0.5.5 through `dedupe`. Overrides, all under the beta
+`cf`/Vite plugin toolchain (`miniflare`, `@cloudflare/config`), which pins exact
+versions: `undici` 7.30.1, `sharp` 0.35.5, `zod` 4.6.7. Left open: `minimatch`
+(eslint and `just-bash`, the fix is 11.x, a major) and `esbuild` 0.18 (dev,
+under `drizzle-kit`'s deprecated `@esbuild-kit`).
 
 ## The Engineering bot
 
