@@ -57,6 +57,11 @@ and the rest of this file (below the line) is upstream's own guide.
   turns, the policy appended to `instructions`, `ensureCofferdamPreset`, which
   also brings a preset routine's change in code to an existing bot once, keyed
   by `routineKey`),
+  `src/control/operation.ts`, `src/control/bots.ts` and `src/mcp/server.ts`
+  (an operation may declare itself `idempotent`, which `/mcp` publishes as
+  `idempotentHint`; an outside agent's `message_bot` requires its
+  `clientRequestId` and is the one that does, so Cofferdam OS can auto-approve
+  it through the MCP portal, joint 9),
   `cloudflare.config.ts` (custom domain, no workers.dev, Claude through the
   bots' own `cofferdam-coworkers` gateway, no fallback model, email off, the Cofferdam bindings),
   `pnpm-workspace.yaml` (pnpm 11's `allowBuilds`, and the security

@@ -112,6 +112,8 @@ type AccessLevel = "read" | "act" | "manage"
 - **Idempotency.** Every write takes an optional `clientRequestId`. Bots
   pass their tool call id, as `delegate_task` already does. A replay
   returns the first result.
+  (Cofferdam: an outside agent's `message_bot` requires its
+  `clientRequestId` and declares `idempotentHint`; `DEPLOYMENT.md` step 12.)
 
 ## Operations (v1)
 

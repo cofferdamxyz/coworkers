@@ -55,6 +55,8 @@ function toolServer(caller: Caller, hub: HubPort) {
         annotations: {
           readOnlyHint: op.effect === "read",
           destructiveHint: op.effect === "destructive",
+          // Cofferdam: declared, never inferred (operation.ts `idempotent`).
+          idempotentHint: op.idempotent === true,
         },
       },
       async (input: unknown) => {

@@ -22,6 +22,14 @@ export interface Operation<I = unknown, O = unknown> {
   level: AccessLevel
   /** Destructive operations always ask, unless the user does them in the browser. */
   effect: "read" | "write" | "destructive"
+  /**
+   * Cofferdam: the same input takes effect once, so `/mcp` declares MCP's
+   * `idempotentHint`. Set it only when the input carries the key that makes a
+   * retry a no-op; a vetted gatekeeper (Cofferdam OS through the MCP portal)
+   * may then auto-approve the call (workspace runbook
+   * agentic-loop-completion.md, joint 9).
+   */
+  idempotent?: boolean
   /** Who may call it at all. Absent: anyone with the level. */
   callers?: Caller["kind"][]
   /** The rule that governs it when a bot calls it. Absent: always allowed. */

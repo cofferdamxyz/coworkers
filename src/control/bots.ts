@@ -141,6 +141,17 @@ export const delegateTask = defineOperation({
 const MAX_TASK_WAIT_S = 50
 const TASK_POLL_MS = 2_000
 
+/** Cofferdam: 16 hex characters of the message's SHA-256, for its delivery key. */
+async function textKey(text: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text)
+  )
+  return Array.from(new Uint8Array(digest).slice(0, 8), (b) =>
+    b.toString(16).padStart(2, "0")
+  ).join("")
+}
+
 export const messageBotFromClient = defineOperation({
   name: "message_bot",
   description:
@@ -150,19 +161,26 @@ export const messageBotFromClient = defineOperation({
       .string()
       .describe("The bot's link or id, from list_bots, or its name"),
     message: z.string(),
+    // Cofferdam: required, so the tool is idempotent and says so (joint 9:
+    // Cofferdam OS auto-approves only an idempotent, non-destructive write).
     clientRequestId: z
       .string()
+      .min(1)
       .max(100)
-      .optional()
-      .describe("The same value on a retry delivers the message once"),
+      .describe(
+        "A new id for each new message; the same id on a retry delivers the message once"
+      ),
   }),
   level: "act",
   effect: "write",
+  idempotent: true,
   callers: ["client"],
-  async run({ caller, hub, requestId }, { to, message, clientRequestId }) {
+  async run({ caller, hub }, { to, message, clientRequestId }) {
     if (caller.kind !== "client")
       return fail("unavailable", "For outside agents.")
-    const key = `client:${caller.clientId}:${clientRequestId ?? requestId ?? crypto.randomUUID()}`
+    // Cofferdam: the text is part of the key, so only an exact retry (same id,
+    // same message) is dropped; an id reused for a new message still delivers.
+    const key = `client:${caller.clientId}:${clientRequestId}:${await textKey(message)}`
     const sent = await hub.messageFromClient(caller, to, message, key)
     if (!sent.delivered) return fail(sent.code, sent.error)
     return { delivered: true, to: sent.to, link: botLink(sent.botId) }

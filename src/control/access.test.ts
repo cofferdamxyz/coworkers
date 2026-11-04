@@ -546,8 +546,46 @@ describe("outside agents", () => {
       expect.objectContaining({ clientId: "cl1" }),
       "Ada",
       "hi",
-      "client:cl1:r2"
+      expect.stringMatching(/^client:cl1:r2:[0-9a-f]{16}$/)
     )
+  })
+
+  // Cofferdam (joint 9): message_bot is idempotent, so its key is required.
+  it("must name the message's request id", async () => {
+    const hub = fakeHub()
+    expect(
+      await runOperation(
+        messageBotFromClient,
+        ctx({ caller: agent(), hub }),
+        { to: "Ada", message: "hi" }
+      )
+    ).toMatchObject({ ok: false, code: "invalid" })
+    expect(hub.messageFromClient).not.toHaveBeenCalled()
+    expect(messageBotFromClient.idempotent).toBe(true)
+    expect(messageBotFromClient.effect).toBe("write")
+  })
+
+  it("deliver a retried message under the same key", async () => {
+    const hub = fakeHub()
+    const input = { to: "Ada", message: "hi", clientRequestId: "r3" }
+    await runOperation(messageBotFromClient, ctx({ caller: agent(), hub }), input)
+    await runOperation(messageBotFromClient, ctx({ caller: agent(), hub }), input)
+    const keys = vi.mocked(hub.messageFromClient).mock.calls.map((c) => c[3])
+    expect(keys[0]).toBe(keys[1])
+  })
+
+  it("deliver a new message even when its id was used before", async () => {
+    const hub = fakeHub()
+    const send = (message: string) =>
+      runOperation(messageBotFromClient, ctx({ caller: agent(), hub }), {
+        to: "Ada",
+        message,
+        clientRequestId: "r4",
+      })
+    await send("first review")
+    await send("second review")
+    const keys = vi.mocked(hub.messageFromClient).mock.calls.map((c) => c[3])
+    expect(keys[0]).not.toBe(keys[1])
   })
 
   it("read a finished task", async () => {

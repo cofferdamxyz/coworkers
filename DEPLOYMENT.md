@@ -653,6 +653,29 @@ unavailable and the Spend page stays off.
 
 **11.5 Deploy again** (the session), so `OPS_GITHUB_APP_ID` carries the id.
 
+## 12. Joint 9: Cofferdam OS through an MCP portal
+
+The Billing Monitor in Cofferdam OS sends each 12-hour review to the Ops bot as
+an outside agent's `message_bot`, through a Cloudflare MCP Server Portal in
+front of this Worker's `/mcp` and the OS's portal connector
+(`gatekeeper-mcp-portal`) with `MCP_PORTAL_TRUST_ANNOTATIONS=true`; the
+founder's always-approve rule covers that one action kind (workspace runbook
+`agentic-loop-completion.md`, §9 and joint 9).
+
+**12.1 The Coworkers side (code, 2026-11-04).** The OS auto-approves only a
+write that declares `destructiveHint: false` and `idempotentHint: true`. An
+outside agent's `message_bot` now requires `clientRequestId` (a new id per
+message, the same id on a retry) and declares itself idempotent: a retry with
+the same id and the same text reaches the bot once (Think's submission key
+`client:<clientId>:<clientRequestId>:<16 hex of the text's SHA-256>`, kept for
+good); an id reused for a different message still delivers it. Every other tool on `/mcp` declares
+`idempotentHint: false`, so none of them can be auto-approved. An outside
+agent that called `message_bot` without the id now gets `invalid` and must
+send one.
+
+**12.2 The portal, the OS connector and the rule** follow once 12.1 is
+deployed.
+
 ## The Engineering bot
 
 Created by code (`src/cofferdam/engineering.ts`) in the owner's hub on the first
