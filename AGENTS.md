@@ -32,7 +32,8 @@ and the rest of this file (below the line) is upstream's own guide.
   repository only, with the `dispatch` guard and the `close_issue` gate (only
   an issue in `waiting` whose pull request Lockkeeper shows merged). Security:
   Dependabot, code scanning and secret scanning alerts, Code Quality findings
-  and setup (reads only) and Copilot Autofix (`security-tools.ts`, every answer cut to listed fields, never a secret
+  and setup, pull requests (reads only, paged to exact totals) and Copilot
+  Autofix (`security-tools.ts`, every answer cut to listed fields, never a secret
   value), issue reads, and filing and comments in the `security` lane only. The
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
   per-permission tokens for any App. Tests in `cofferdam.test.ts`.

@@ -393,8 +393,11 @@ settings → GitHub Apps → New GitHub App:
   this Worker never calls), Dependabot alerts **Read-only**, Secret scanning
   alerts **Read-only**, Code quality **Read and write** (read is what the
   findings and setup reads need; write is the founder's choice of 2026-11-03,
-  unused by any tool), Issues **Read and write** (the triage issue and the
-  weekly summary), Metadata Read-only. Nothing else: no contents, no pull
+  unused by any tool), Pull requests **Read-only** (added by the founder
+  2026-11-03: a Dependabot pull request's advisories and CI result are read,
+  not guessed from its branch), Issues **Read and write** (the triage issue
+  and the weekly summary; read on a product repository for a pull request's
+  CI comment), Metadata Read-only. Nothing else: no contents, no pull
   requests, no workflows, no organisation permissions.
 - **Where can this GitHub App be installed:** Only on this account. Create,
   note the **App ID**, **Generate a private key**.
@@ -436,8 +439,19 @@ script; the reusable policy `Lockkeeper Access from the Security bot`
 (`03f2b46b…`, Service Auth) is the `lockkeeper` application's fifth policy,
 beside the founder's email, Claude Code, the Engineering bot and the dispatch
 routine (attached through the API with the app's other settings unchanged).
-Each secret put published a version, so no deploy was needed. Left: the first
-chat ("what is open?").
+Each secret put published a version, so no deploy was needed.
+
+**Verified 2026-11-03 evening:** the bot's first chat read all eleven
+repositories through its App and Lockkeeper's open Dependabot pull requests:
+about 390 open Dependabot alerts (pages over 100, so a minimum: the one-page
+lists of then), 10 code scanning (9 on `coworkers`, 1 on `lockkeeper`), no
+secret scanning; code scanning answered 403 on the four repositories without
+Code Security. It named the green Dependabot pull requests by branch name only,
+since it could not read pull requests. Both gaps were fixed the same night: the
+lists page to exact totals, a feature that is off says so, and the founder
+added Pull requests read so it reads each pull request's advisories and CI
+result. Left for joint 5's Security part: its first triage issue, approved on
+its card.
 
 **10.2 The deploy file.** Add `"securityGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
@@ -496,8 +510,11 @@ sign-in, never by hand:
 Created by code (`src/cofferdam/security.ts`) in the owner's hub on the first
 sign-in after the deploy that carries it, never by hand:
 
-- **Reads:** Dependabot, code scanning and secret scanning alerts, and Code
-  Quality findings and setup, on the repositories its App is installed on, cut to the fields triage needs (a
+- **Reads:** Dependabot, code scanning and secret scanning alerts, Code
+  Quality findings and setup, and pull requests with their bot comments, on
+  the repositories its App is installed on; every list pages through to exact
+  totals by severity with the worst 40 in full, and a feature that is off
+  in a repository says so, cut to the fields triage needs (a
   secret scanning alert's value is never returned); each CodeQL alert's Copilot
   Autofix; issues of `cofferdamxyz/cofferdam`; Lockkeeper `brief`,
   `in_flight`, `check` with its own token.

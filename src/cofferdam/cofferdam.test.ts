@@ -1,17 +1,23 @@
 import { generateKeyPairSync, createVerify } from "node:crypto"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { MAX_IN_FLIGHT } from "./config"
 import {
   ENGINEERING_ROUTINE,
   ENGINEERING_RULES,
   engineeringPolicy,
 } from "./engineering"
-import { appJwt, pemToPkcs8 } from "./github-app"
+import { appJwt, pemToPkcs8, resetGitHubAppCache } from "./github-app"
 import { isPreset, PRESET_DEFS, presetPolicy, stricter } from "./presets"
 import { SECURITY_ROUTINE, SECURITY_RULES, securityPolicy } from "./security"
 import {
   codeQualityFinding,
   codeScanningAlert,
+  featureOff,
+  nextPath,
+  callSecurityAlertTool,
+  pullRequest,
+  severities,
+  summarize,
   quotesCredential,
   dependabotAlert,
   secretScanningAlert,
@@ -514,10 +520,12 @@ describe("Security bot", () => {
       "get_code_quality_finding",
       "get_code_quality_setup",
       "get_issue",
+      "get_pull_request",
       "list_code_quality_findings",
       "list_code_scanning_alerts",
       "list_dependabot_alerts",
       "list_issues",
+      "list_pull_requests",
       "list_secret_scanning_alerts",
       "request_autofix",
       "search_issues",
@@ -690,6 +698,267 @@ describe("Security bot", () => {
       category: "maintainability",
       location: "src/c.ts:9-9",
       help: "Remove it.",
+    })
+  })
+
+  it("counts every alert by severity and shows the worst first", () => {
+    const alerts = [
+      ...Array.from({ length: 50 }, (_, i) => ({ n: i, severity: "low" })),
+      { n: 100, severity: "critical" },
+      { n: 101, severity: "high" },
+    ]
+    const out = summarize(alerts, true, { patched: 52 })
+    expect(out.total).toBe(52)
+    expect(out).toMatchObject({
+      bySeverity: { low: 50, critical: 1, high: 1 },
+    })
+    expect(out.shown).toBe(40)
+    expect(out.alerts[0]).toMatchObject({ severity: "critical" })
+    expect(out.alerts[1]).toMatchObject({ severity: "high" })
+    expect(out).toMatchObject({ patched: 52 })
+    expect("incomplete" in out).toBe(false)
+    expect(summarize(alerts, false).incomplete).toMatch(/first 1000/)
+  })
+
+  it("follows the next page by name or by id, and never counts an unreadable link complete", () => {
+    expect(
+      nextPath(
+        '<https://api.github.com/repos/cofferdamxyz/cofferdam-pages/dependabot/alerts?per_page=100&after=abc>; rel="next", <https://x>; rel="last"',
+        "cofferdam-pages"
+      )
+    ).toBe("/dependabot/alerts?per_page=100&after=abc")
+    expect(
+      nextPath(
+        '<https://api.github.com/repositories/123456/code-scanning/alerts?page=2>; rel="next"',
+        "cofferdam-pages"
+      )
+    ).toBe("/code-scanning/alerts?page=2")
+    expect(nextPath('<https://x>; rel="prev"', "lockkeeper")).toBeUndefined()
+    expect(nextPath(null, "lockkeeper")).toBeUndefined()
+    // Another repository or host: not followed, and the count is incomplete.
+    expect(
+      nextPath(
+        '<https://api.github.com/repos/cofferdamxyz/other/dependabot/alerts?after=x>; rel="next"',
+        "lockkeeper"
+      )
+    ).toBeNull()
+    expect(
+      nextPath(
+        '<https://evil.example/repositories/1/x>; rel="next"',
+        "lockkeeper"
+      )
+    ).toBeNull()
+  })
+
+  it("says a feature is off on 403 or 404, but a missing permission stays an error", () => {
+    expect(
+      featureOff(
+        403,
+        "Code Security must be enabled for this repository to use code scanning.",
+        "Code scanning"
+      )
+    ).toMatch(/not enabled in this repository/)
+    expect(featureOff(404, "no analysis found", "Code scanning")).toMatch(
+      /not enabled/
+    )
+    expect(
+      featureOff(403, "Resource not accessible by integration", "Code scanning")
+    ).toBeNull()
+    expect(featureOff(500, "boom", "Code scanning")).toBeNull()
+  })
+
+  it("reads a pull request's branch and author, not its whole payload", () => {
+    const pr = pullRequest({
+      number: 18,
+      title: "Bump next in the npm_and_yarn group",
+      state: "open",
+      draft: false,
+      head: { ref: "dependabot/npm_and_yarn/security-group", sha: "abc" },
+      user: { login: "dependabot[bot]" },
+      labels: [{ name: "dependencies" }],
+      html_url: "https://github.com/cofferdamxyz/cofferdam-pages/pull/18",
+    })
+    expect(pr).toMatchObject({
+      number: 18,
+      branch: "dependabot/npm_and_yarn/security-group",
+      author: "dependabot[bot]",
+      labels: ["dependencies"],
+    })
+  })
+
+  it("never reads a rate limit as a feature that is off", () => {
+    expect(
+      featureOff(
+        403,
+        "API rate limit exceeded for installation",
+        "Code scanning"
+      )
+    ).toBeNull()
+    expect(
+      featureOff(
+        403,
+        "You have exceeded a secondary rate limit",
+        "Code scanning"
+      )
+    ).toBeNull()
+    expect(
+      featureOff(
+        403,
+        "Forbidden",
+        "Code scanning",
+        new Headers({ "x-ratelimit-remaining": "0" })
+      )
+    ).toBeNull()
+    expect(
+      featureOff(
+        403,
+        "Forbidden",
+        "Code scanning",
+        new Headers({ "retry-after": "60" })
+      )
+    ).toBeNull()
+  })
+
+  it("filters code scanning on one severity, Dependabot on several", () => {
+    expect(
+      severities({ severity: "critical,high" }, ["critical", "high"])
+    ).toBe("&severity=critical,high")
+    expect(() =>
+      severities({ severity: "critical,high" }, ["critical", "high"], true)
+    ).toThrow(/one severity/)
+    expect(() => severities({ severity: "bogus" }, ["critical"])).toThrow(
+      /must be among/
+    )
+    expect(severities({}, ["critical"])).toBe("")
+  })
+
+  it("counts secrets by type, never inventing a severity", () => {
+    const out = summarize(
+      [
+        secretScanningAlert({ number: 1, secret_type_display_name: "AWS key" }),
+        secretScanningAlert({ number: 2, secret_type_display_name: "AWS key" }),
+      ],
+      true,
+      {},
+      "type"
+    )
+    expect(out).toMatchObject({ byType: { "AWS key": 2 } })
+    expect(JSON.stringify(out)).not.toContain("critical")
+  })
+
+  describe("paging against GitHub", () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 })
+    const app = {
+      GITHUB_APP_ID: "2",
+      GITHUB_APP_PRIVATE_KEY: privateKey.export({
+        type: "pkcs8",
+        format: "pem",
+      }) as string,
+    }
+    const alert = (number: number, severity: string) => ({
+      number,
+      state: "open",
+      dependency: {
+        package: { ecosystem: "npm", name: `p${number}` },
+        scope: "runtime",
+      },
+      security_advisory: { severity },
+      security_vulnerability: {
+        first_patched_version: { identifier: "1.0.1" },
+      },
+    })
+
+    function github(routes: (url: URL) => Response | undefined) {
+      const calls: string[] = []
+      const fetcher = vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(
+          String(input instanceof Request ? input.url : input)
+        )
+        calls.push(`${url.pathname}${url.search}`)
+        if (url.pathname.endsWith("/installation"))
+          return Response.json({ id: 1 })
+        if (url.pathname.endsWith("/access_tokens")) {
+          return Response.json({
+            token: "t",
+            expires_at: new Date(Date.now() + 3600_000).toISOString(),
+          })
+        }
+        return routes(url) ?? new Response("not found", { status: 404 })
+      })
+      vi.stubGlobal("fetch", fetcher)
+      return calls
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      resetGitHubAppCache()
+    })
+
+    it("follows every page, counts each alert once, and says it is complete", async () => {
+      const calls = github((url) => {
+        if (!url.pathname.endsWith("/dependabot/alerts")) return undefined
+        if (url.searchParams.get("after") === "c1") {
+          return Response.json([alert(2, "high"), alert(3, "low")])
+        }
+        return Response.json([alert(1, "critical"), alert(2, "high")], {
+          headers: {
+            link: '<https://api.github.com/repositories/9/dependabot/alerts?per_page=100&after=c1>; rel="next"',
+          },
+        })
+      })
+      const out = (await callSecurityAlertTool(app, "list_dependabot_alerts", {
+        repo: "lockkeeper",
+      })) as Record<string, unknown>
+      expect(out).toMatchObject({
+        total: 3,
+        bySeverity: { critical: 1, high: 1, low: 1 },
+        patched: 3,
+        runtime: 3,
+      })
+      expect("incomplete" in out).toBe(false)
+      expect(
+        calls
+          .filter((c) => c.includes("/dependabot/alerts"))
+          .map((c) => c.split("?")[0])
+      ).toEqual([
+        "/repos/cofferdamxyz/lockkeeper/dependabot/alerts",
+        "/repos/cofferdamxyz/lockkeeper/dependabot/alerts",
+      ])
+    })
+
+    it("answers not enabled when code scanning is off, and fails on a rate limit", async () => {
+      github((url) =>
+        url.pathname.endsWith("/code-scanning/alerts")
+          ? Response.json(
+              { message: "Code Security must be enabled for this repository." },
+              { status: 403 }
+            )
+          : undefined
+      )
+      const off = (await callSecurityAlertTool(
+        app,
+        "list_code_scanning_alerts",
+        {
+          repo: "cofferdam-app",
+        }
+      )) as Record<string, unknown>
+      expect(off).toMatchObject({ enabled: false, total: null })
+
+      vi.unstubAllGlobals()
+      resetGitHubAppCache()
+      github((url) =>
+        url.pathname.endsWith("/code-scanning/alerts")
+          ? Response.json(
+              { message: "Forbidden" },
+              { status: 403, headers: { "x-ratelimit-remaining": "0" } }
+            )
+          : undefined
+      )
+      await expect(
+        callSecurityAlertTool(app, "list_code_scanning_alerts", {
+          repo: "cofferdam-app",
+        })
+      ).rejects.toThrow(/403/)
     })
   })
 })
