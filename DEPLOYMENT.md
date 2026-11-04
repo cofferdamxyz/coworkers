@@ -227,17 +227,17 @@ pnpm exec web-push generate-vapid-keys
 ```
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put VAPID_PUBLIC_KEY --name coworkers
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put VAPID_PUBLIC_KEY --name coworkers
 ```
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put VAPID_PRIVATE_KEY --name coworkers
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put VAPID_PRIVATE_KEY --name coworkers
 ```
 
 The GitHub App's private key, from the file GitHub downloaded:
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-engineering-bot.*.private-key.pem
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-engineering-bot.*.private-key.pem
 ```
 
 ```bash
@@ -247,24 +247,24 @@ rm ~/Downloads/cofferdam-engineering-bot.*.private-key.pem
 The Lockkeeper service token, both halves (already put if the step 5 script ran):
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put LOCKKEEPER_ACCESS_CLIENT_ID --name coworkers
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put LOCKKEEPER_ACCESS_CLIENT_ID --name coworkers
 ```
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put LOCKKEEPER_ACCESS_CLIENT_SECRET --name coworkers
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put LOCKKEEPER_ACCESS_CLIENT_SECRET --name coworkers
 ```
 
 Optional, for the per-bot Spend page (an API token with **AI Gateway Read** on
 the Cofferdam account only):
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put AI_GATEWAY_API_TOKEN --name coworkers
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put AI_GATEWAY_API_TOKEN --name coworkers
 ```
 
 Check the names (never the values):
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret list --name coworkers
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret list --name coworkers
 ```
 
 Not set, on purpose: `BROWSER_RUN_API_TOKEN` (the crawl tool, later if wanted)
@@ -516,10 +516,10 @@ its card.
 **10.2 The deploy file.** Add `"securityGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
 
-**10.3 The key**, in your terminal from this folder:
+**10.3 The key**, in your terminal (the workspace path is spelled out: from any other folder a bare `..` loads no `.envrc` and wrangler falls back to its own login, the personal account, as on 2026-11-04):
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put SECURITY_GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-security-bot.*.private-key.pem
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put SECURITY_GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-security-bot.*.private-key.pem
 ```
 
 ```bash
@@ -625,10 +625,10 @@ settings → GitHub Apps → New GitHub App:
 **11.2 The deploy file.** Add `"opsGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
 
-**11.3 The key**, in your terminal from this folder:
+**11.3 The key**, in your terminal (the full workspace path, as in 10.3):
 
 ```bash
-direnv exec .. pnpm dlx wrangler@4.95.0 secret put OPS_GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-ops-bot.*.private-key.pem
+direnv exec ~/Development/Cofferdam pnpm dlx wrangler@4.95.0 secret put OPS_GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-ops-bot.*.private-key.pem
 ```
 
 ```bash
