@@ -296,6 +296,13 @@ hits it. Once it lands, the next upstream merge carries it and our copy goes.
 
 **Deployed again 2026-11-03** as `a014d4fc` (the app icons) and `68e3c064` (the Engineering bot's `close_issue` tool: ask-first, refuses unless the issue is in `waiting`, its report names the pull request, and Lockkeeper shows it merged and out of flight; GitHub's public view of the pull request must agree when readable).
 
+**Deployed 2026-11-04 01:20 UTC (2026-11-03 evening in São Paulo)** as `a87cb839` from `main` at `ddfb79f`: the
+Security bot (471f6c4, step 10; its App, key and token not yet created, so its
+two connections show failed) and the theme tokens and brand of
+fayazara/coworkers#22 (`d641647`, `ddfb79f`). Tests 211 passed on that commit
+before the deploy. `/manifest.webmanifest` still answers with the Access
+sign-in until the founder's path change in step 2; `/sw.js` is public.
+
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
 came back with Lockkeeper's branches, pull requests, the Dependabot queue and
