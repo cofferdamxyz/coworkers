@@ -321,6 +321,12 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04 18:08 UTC** as `32f5ba2f` from `main` at `ef51e3b`: the
+Ops bot (step 11, The Ops bot). Tests 231 passed, typecheck clean, dry run
+clean. `OPS_GITHUB_APP_ID` is still empty: the bot appears in the hub on the
+next sign-in with its GitHub connection failed until steps 11.1–11.5. Checked
+after: `/` redirects to Access.
+
 **Deployed 2026-11-04** as `3e3e9ffd` from `main` at `5b609f7`: the daily
 security triage lists the Dependabot pull requests that need `@dependabot
 rebase`, and a preset routine changed in code now reaches the existing bot on
