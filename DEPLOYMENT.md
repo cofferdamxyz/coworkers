@@ -321,6 +321,10 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04** as `73f8fcc7` from `main` at `f4d2dac`: the rebase
+comment's token carries Pull requests write (the first try on `lockkeeper#5`
+answered 403 with Issues write alone).
+
 **Deployed 2026-11-04** as `e03f1df3` from `main` at `9e66f8f`: the Security
 bot's `request_dependabot_rebase` (the fixed `@dependabot rebase` on
 Dependabot's own open pull requests, ask-first); first test on
