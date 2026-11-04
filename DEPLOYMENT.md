@@ -401,6 +401,17 @@ settings → GitHub Apps → New GitHub App:
   steel hexagon head with Cerulean ears), **Badge background color** `0b1124`,
   as for the Engineering bot.
 
+**Progress 2026-11-03:** the App exists, `Cofferdam Security Bot` (slug
+`cofferdam-security-bot`, App ID 5604602), installed on selected repositories
+of `cofferdamxyz`; its id is in `coworkers.deploy.json` and on the Worker since
+version `36445372`. Its permissions as GitHub reports them: Code scanning
+alerts write, Dependabot alerts read, Secret scanning alerts read, Issues
+write, Metadata read, and **Code quality write**, which was not asked for: the
+Worker never requests it (every token is minted with the one permission its
+call needs), but it widens the ceiling, so set it to No access in the App's
+settings. The key (10.3) and the Lockkeeper token (10.4) are next; their three
+secret names exist on the Worker, created empty by the first deploy.
+
 **10.2 The deploy file.** Add `"securityGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
 
