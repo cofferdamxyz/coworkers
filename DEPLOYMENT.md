@@ -413,9 +413,11 @@ settings → GitHub Apps → New GitHub App:
   this Worker never calls), Dependabot alerts **Read-only**, Secret scanning
   alerts **Read-only**, Code quality **Read and write** (read is what the
   findings and setup reads need; write is the founder's choice of 2026-11-03,
-  unused by any tool), Pull requests **Read-only** (added by the founder
-  2026-11-03: a Dependabot pull request's advisories and CI result are read,
-  not guessed from its branch), Issues **Read and write** (the triage issue
+  unused by any tool), Pull requests **Read and write** (read added by the
+  founder 2026-11-03: a Dependabot pull request's advisories and CI result are
+  read, not guessed from its branch; write 2026-11-04, because GitHub refuses a
+  comment on a pull request without it, used by one call only, the fixed
+  `@dependabot rebase`), Issues **Read and write** (the triage issue
   and the weekly summary; read on a product repository for a pull request's
   CI comment), Metadata Read-only. Nothing else: no contents, no pull
   requests, no workflows, no organisation permissions.

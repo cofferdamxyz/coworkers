@@ -582,6 +582,12 @@ async function latestComments(
   return (await res.json()) as Json[]
 }
 
+/** The rebase comment's token: the one place Pull requests write is used. */
+export const REBASE_PERMISSIONS: TokenPermissions = {
+  issues: "write",
+  pull_requests: "write",
+}
+
 /** The only text the bot ever posts on a product repository. */
 export const DEPENDABOT_REBASE = "@dependabot rebase"
 
@@ -866,9 +872,12 @@ export async function callSecurityAlertTool(
       )
       const refusal = rebaseRefusal(pr)
       if (refusal) throw new Error(`Not asked: ${refusal}`)
+      // A comment on a pull request needs Pull requests write on the token
+      // (403 with Issues write alone, lockkeeper#5, 2026-11-04); this is the
+      // only call that ever mints it.
       const comment = await repoApi<Json>(
         app,
-        { issues: "write" },
+        REBASE_PERMISSIONS,
         `/issues/${v}/comments`,
         { method: "POST", body: JSON.stringify({ body: DEPENDABOT_REBASE }) },
         "asking Dependabot to rebase",
