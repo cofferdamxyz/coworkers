@@ -321,6 +321,12 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04 18:37 UTC** as `a770952d` from `main` at `4a026a7`:
+joint 9's Coworkers side (step 12.1), an outside agent's `message_bot`
+idempotent with a required `clientRequestId`. Tests 234 passed, reviewed in a
+fresh context (one finding fixed: the text is in the key). Checked after: `/`
+redirects to Access, `/mcp` without a token answers 401.
+
 **Deployed 2026-11-04 18:23 UTC** as `7f77d094` from `main` at `8695bd9`: the
 Ops bot's App, `Cofferdam Ops Bot` (slug `cofferdam-ops-bot`, App ID 5615846;
 Contents read, Issues write, Metadata read, on selected repositories), its key
@@ -673,8 +679,8 @@ good); an id reused for a different message still delivers it. Every other tool 
 agent that called `message_bot` without the id now gets `invalid` and must
 send one.
 
-**12.2 The portal, the OS connector and the rule** follow once 12.1 is
-deployed.
+**12.2 The portal, the OS connector and the rule** follow; 12.1 is deployed
+(`a770952d`).
 
 ## The Engineering bot
 
