@@ -43,7 +43,8 @@ and the rest of this file (below the line) is upstream's own guide.
   `fonts/`); never edit a value there, change the brand and copy again.
   `theme.css` points the `--brand-*` tokens at the `--cd-*` ones: ink primary
   actions, the accent for focus, links and selection, Geist everywhere. Tests
-  in `brand.test.ts`.
+  in `brand.test.ts`. A brand change is copied in from cofferdam-branding with
+  `node scripts/sync.mjs --only=coworkers --write` (`DEPLOYMENT.md`, Brand).
 - Small, marked hooks in upstream files (each starts with a `Cofferdam:` comment):
   `src/agents/user-hub.ts` (provisions each preset bot for the owner once; lists
   and routes a preset's deployment connections to the bot holding it only),

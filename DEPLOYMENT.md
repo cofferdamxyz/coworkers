@@ -527,6 +527,26 @@ id. Joint 5's Security part is done when the bot answers "what is open?" with
 alerts from at least one repository and its first triage issue, approved on
 its card, lands in `cofferdam` with the `security` label.
 
+## Brand
+
+The Cofferdam brand is the fork's own layer over upstream's theme tokens
+(`docs/theming.md`), in `src/cofferdam/brand/`: `theme.css` (hand-written,
+points the `--brand-*` tokens at cofferdam-branding's `--cd-*` ones),
+`brand.generated.css` and `fonts/` (Geist, Geist Mono). The last two are
+cofferdam-branding's `dist/pages/brand.generated.css` and `fonts/` copied byte
+for byte; never edit them. A brand change arrives from cofferdam-branding on the
+Mac, not as a pull request (its `brand-sync` workflow serves the app and the
+website only):
+
+```sh
+cd /Users/hoff/Development/Cofferdam/cofferdam-branding && node scripts/build.mjs && node scripts/sync.mjs --only=coworkers --write
+```
+
+Then run the tests (`brand.test.ts` checks the copy and the mapping), commit
+here and deploy (step 7). If the dark `web-bg` changed, `docs/theming.md` lists
+what follows `--brand-surface` (`THEME_COLORS`, the manifest, `public/sw.js`,
+`scripts/make-dark-splashes.sh`).
+
 ## The Engineering bot
 
 Created by code (`src/cofferdam/engineering.ts`) in the owner's hub on the first
