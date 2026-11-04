@@ -321,6 +321,11 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04** as `487be9c3` from `main` at `fa1ffe5`: the Security
+bot's exact alert totals (every list paged), "not enabled" instead of a 403,
+and its pull request reads (they answer once the installation accepts Pull
+requests read). Tests 221 passed on that commit.
+
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
 came back with Lockkeeper's branches, pull requests, the Dependabot queue and
