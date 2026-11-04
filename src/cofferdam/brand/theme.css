@@ -12,7 +12,9 @@
  * - the primary action is ink (white on black), never accent-filled, so
  *   Kumo's primary button reads --cd-fg;
  * - the accent (Base Blue in light, Cerulean in dark) means proof and focus:
- *   focus rings, links, selection;
+ *   focus rings, links, selection (the brand README keeps the accent off
+ *   links on the website; here they keep it, ruled by the founder on
+ *   2026-11-04, so links stand out from body text in a chat);
  * - Geist and Geist Mono everywhere.
  * Lines and hover fills keep the app's translucent values, as
  * cofferdam-pages keeps its alpha borders.
