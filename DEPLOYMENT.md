@@ -670,6 +670,10 @@ needs `AI_GATEWAY_API_TOKEN` (step 6: an API token with **AI Gateway Read** on
 the Cofferdam account only). Until it is set the Ops bot reports its spend as
 unavailable and the Spend page stays off.
 
+Done 2026-11-04 ~19:45 UTC: the founder put the workspace's read-only "AI Gateway
+Token" (AI Gateway Read) as the Worker's `AI_GATEWAY_API_TOKEN`, replacing the
+empty placeholder.
+
 **11.5 Deploy again** (the session), so `OPS_GITHUB_APP_ID` carries the id.
 
 ## 12. Joint 9: Cofferdam OS through an MCP portal
