@@ -474,6 +474,7 @@ describe("Security bot", () => {
     expect(policy).toContain("cofferdamxyz/cofferdam")
     expect(policy).toMatch(/never apply `dispatch`/)
     expect(policy).toMatch(/never the value/)
+    expect(policy).toMatch(/Lockkeeper's brief for that repository/)
     expect(policy).toMatch(/changes no permission/)
     expect(PRESET_DEFS.security.policy()).toBe(policy)
   })
