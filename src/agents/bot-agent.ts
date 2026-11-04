@@ -151,7 +151,12 @@ import { createWebTools } from "./web-tools"
 import type { CrawlInput, QuickEngine } from "./web-tools"
 // Cofferdam: the preset bots (rules floor, policy, connections).
 import type { Preset } from "@/cofferdam/config"
-import { isPreset, PRESET_DEFS, presetPolicy } from "@/cofferdam/presets"
+import {
+  isPreset,
+  PRESET_DEFS,
+  presetPolicy,
+  routineKey,
+} from "@/cofferdam/presets"
 import { isCofferdamConnection } from "@/cofferdam/tools"
 
 // The worker-shell backend hands this class to its Dynamic Worker as a
@@ -967,7 +972,10 @@ export class BotAgent extends Think<Env, BotState> {
    * floor and policy apply from then on, whatever the settings say.
    */
   async ensureCofferdamPreset(preset: Preset) {
-    if (this.cofferdamPreset === preset) return
+    if (this.cofferdamPreset === preset) {
+      await this.syncPresetRoutine(preset)
+      return
+    }
     const def = PRESET_DEFS[preset]
     this.setState({
       ...this.state,
@@ -981,8 +989,34 @@ export class BotAgent extends Think<Env, BotState> {
     if (!this.state.routines.some((r) => r.name === def.routine.name)) {
       await this.addRoutine(def.routine)
     }
+    this.ctx.storage.kv.put("cofferdam_routine", routineKey(def.routine))
     // Last, so a call cut off before here runs again in full next time.
     this.ctx.storage.kv.put("cofferdam_preset", preset)
+  }
+
+  /**
+   * Cofferdam: a change to the preset's routine in code reaches a bot that
+   * already holds the preset, once, on the next hub start. An edit made in
+   * the bot's settings stays until the code's routine changes again, and a
+   * routine the founder deleted after a sync is not brought back.
+   */
+  private async syncPresetRoutine(preset: Preset) {
+    const routine = PRESET_DEFS[preset].routine
+    const key = routineKey(routine)
+    const applied = this.ctx.storage.kv.get<string>("cofferdam_routine")
+    if (applied === key) return
+    const current = this.state.routines.find((r) => r.name === routine.name)
+    if (current) {
+      await this.updateRoutine(current.id, {
+        prompt: routine.prompt,
+        when: routine.when,
+        kind: routine.kind,
+        onlyNew: routine.onlyNew === true,
+      })
+    } else if (applied === undefined) {
+      await this.addRoutine(routine)
+    }
+    this.ctx.storage.kv.put("cofferdam_routine", key)
   }
 
   /** Called once by the UserHub right after the bot is created. */

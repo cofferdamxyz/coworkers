@@ -7,7 +7,13 @@ import {
   engineeringPolicy,
 } from "./engineering"
 import { appJwt, pemToPkcs8, resetGitHubAppCache } from "./github-app"
-import { isPreset, PRESET_DEFS, presetPolicy, stricter } from "./presets"
+import {
+  isPreset,
+  PRESET_DEFS,
+  presetPolicy,
+  routineKey,
+  stricter,
+} from "./presets"
 import { SECURITY_ROUTINE, SECURITY_RULES, securityPolicy } from "./security"
 import {
   codeQualityFinding,
@@ -480,9 +486,20 @@ describe("Security bot", () => {
     expect(PRESET_DEFS.security.policy()).toBe(policy)
   })
 
-  it("triages on weekday mornings, read-only", () => {
+  it("triages on weekday mornings, read-only, and names the pull requests to rebase", () => {
     expect(SECURITY_ROUTINE.when).toBe("0 8 * * 1-5")
     expect(SECURITY_ROUTINE.prompt).toMatch(/read only/)
+    expect(SECURITY_ROUTINE.prompt).toMatch(/needs `@dependabot rebase`/)
+  })
+
+  it("keys a routine on what it is, so a change in code reaches existing bots", () => {
+    const key = routineKey(SECURITY_ROUTINE)
+    expect(routineKey({ ...SECURITY_ROUTINE })).toBe(key)
+    expect(routineKey({ ...SECURITY_ROUTINE, prompt: "other" })).not.toBe(key)
+    expect(routineKey({ ...SECURITY_ROUTINE, when: "0 9 * * 1-5" })).not.toBe(
+      key
+    )
+    expect(routineKey({ ...SECURITY_ROUTINE, onlyNew: false })).not.toBe(key)
   })
 
   it("holds its own credentials, never Engineering's", () => {

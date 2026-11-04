@@ -567,7 +567,11 @@ sign-in after the deploy that carries it, never by hand:
   what to land, what it would file, which CodeQL alerts lack an Autofix; on
   Mondays a draft of the weekly summary. Requesting an Autofix waits for you in
   chat (the ruling of 2026-11-03 had the triage request it; a background turn
-  never writes here, so it asks instead).
+  never writes here, so it asks instead). It also lists every open Dependabot pull
+  request that needs `@dependabot rebase` (no CI result, or conflicting or
+  behind main), with links, for the founder to comment. Routine changes in
+  code reach the existing bot on the next hub start (`routineKey`, since
+  2026-11-04; before that the routine stayed as first created).
 - Its connections (`cofferdam-security-github`, `cofferdam-security-lockkeeper`)
   are listed only to it; Engineering's only to Engineering.
 

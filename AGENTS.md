@@ -48,7 +48,9 @@ and the rest of this file (below the line) is upstream's own guide.
   `src/agents/user-hub.ts` (provisions each preset bot for the owner once; lists
   and routes a preset's deployment connections to the bot holding it only),
   `src/agents/bot-agent.ts` (the rules floor in `policyFor`, read-only background
-  turns, the policy appended to `instructions`, `ensureCofferdamPreset`),
+  turns, the policy appended to `instructions`, `ensureCofferdamPreset`, which
+  also brings a preset routine's change in code to an existing bot once, keyed
+  by `routineKey`),
   `cloudflare.config.ts` (custom domain, no workers.dev, Claude through the
   bots' own `cofferdam-coworkers` gateway, no fallback model, email off, the Cofferdam bindings),
   `pnpm-workspace.yaml` (pnpm 11's `allowBuilds`), `public/` (the manifest; the icons and favicon are the Engineering bot's head on the brand gradient, `scripts/make-icons.sh`, so a tab is told apart from cofferdam.xyz),

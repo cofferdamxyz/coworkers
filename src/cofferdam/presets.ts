@@ -64,6 +64,20 @@ export const PRESET_DEFS: Record<Preset, PresetDef> = {
   },
 }
 
+/**
+ * What a preset's routine is in code, as one string: a bot stores the key it
+ * last applied, and a change in code reaches it once, on the next hub start.
+ */
+export function routineKey(routine: Omit<Routine, "id">) {
+  return JSON.stringify([
+    routine.name,
+    routine.kind,
+    routine.when,
+    routine.onlyNew === true,
+    routine.prompt,
+  ])
+}
+
 export function isPreset(value: unknown): value is Preset {
   return (PRESETS as readonly unknown[]).includes(value)
 }
