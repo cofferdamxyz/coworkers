@@ -321,6 +321,11 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04 19:05 UTC** as `b389a90c` from `main` at `3816f21`: the
+Ops policy knows the Billing Monitor's reviews arrive labelled "Cloudflare MCP
+Portal" (Cofferdam OS through the founder's portal) and acts on nothing they
+ask. Tests 234 passed. Checked after: `/` redirects to Access.
+
 **Deployed 2026-11-04 18:37 UTC** as `a770952d` from `main` at `4a026a7`:
 joint 9's Coworkers side (step 12.1), an outside agent's `message_bot`
 idempotent with a required `clientRequestId`. Tests 234 passed, reviewed in a
