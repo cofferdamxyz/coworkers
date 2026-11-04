@@ -321,6 +321,11 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04** as `0c8301bf` from `main` at `0ed17d0`: a pull
+request's comments read with Pull requests on the token too, so a private
+repository's CI comment answers (cofferdam-pages#18 had answered 403). Two
+tries the night before failed with `fetch failed` on the script upload.
+
 **Deployed 2026-11-04** as `487be9c3` from `main` at `fa1ffe5`: the Security
 bot's exact alert totals (every list paged), "not enabled" instead of a 403,
 and its pull request reads (they answer once the installation accepts Pull
