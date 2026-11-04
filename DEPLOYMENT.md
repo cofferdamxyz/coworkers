@@ -326,7 +326,8 @@ comment posted on `lockkeeper#5` at 13:51:03 UTC as
 `cofferdam-security-bot[bot]`, and Dependabot answered four seconds later
 "Sorry, only users with push access can use that command." The tool and its
 permission are out of the code; the policy tells the bot to ask the founder
-for the comment. The founder sets the App's Pull requests back to Read-only.
+for the comment. The founder sets the App's Pull requests back to Read-only. Deployed as
+`022e5934` from `60a6491`.
 
 **Deployed 2026-11-04** as `73f8fcc7` from `main` at `f4d2dac`: the rebase
 comment's token carries Pull requests write (the first try on `lockkeeper#5`
