@@ -5,6 +5,11 @@
  * is cut down to listed fields, so a secret scanning alert's value never
  * reaches the model, and alert text is marked as data.
  *
+ * Code Quality findings and the repository's Code Quality setup are read
+ * too (GitHub's public preview API, version 2026-03-10). Changing the setup
+ * (on or off, languages, AI findings) is repository configuration, the
+ * founder's, and not a tool here, whatever the App's permission allows.
+ *
  * Only `request_autofix` writes (GitHub generates a suggestion; nothing is
  * committed), so it asks like every other write. Accepting a suggestion,
  * dismissing an alert and committing are not tools here: the founder does
@@ -74,6 +79,42 @@ export const SECURITY_ALERT_TOOLS: ToolDef[] = [
         repo: repoArg,
         state: stateArg(["open", "resolved"]),
       },
+      required: ["repo"],
+    },
+    readOnly: true,
+  },
+  {
+    name: "list_code_quality_findings",
+    description:
+      "List Code Quality findings in one repository: rule, category (reliability, maintainability), severity, location and message. Works only where Code Quality is enabled.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repo: repoArg,
+        state: stateArg(["open", "dismissed"]),
+      },
+      required: ["repo"],
+    },
+    readOnly: true,
+  },
+  {
+    name: "get_code_quality_finding",
+    description:
+      "Read one Code Quality finding with its rule's description and help.",
+    inputSchema: {
+      type: "object",
+      properties: { repo: repoArg, number: alertNumber },
+      required: ["repo", "number"],
+    },
+    readOnly: true,
+  },
+  {
+    name: "get_code_quality_setup",
+    description:
+      "Read whether Code Quality is configured in one repository, its languages, schedule and AI findings option.",
+    inputSchema: {
+      type: "object",
+      properties: { repo: repoArg },
       required: ["repo"],
     },
     readOnly: true,
@@ -177,6 +218,37 @@ export function codeScanningAlert(a: Json) {
     created: a.created_at,
     url: a.html_url,
   }
+}
+
+export function codeQualityFinding(f: Json, detail = false) {
+  const rule = obj(f.rule)
+  const location = obj(f.location)
+  const withhold = quotesCredential(rule.id)
+  return {
+    number: f.number,
+    state: f.state,
+    rule: rule.id ?? null,
+    title: rule.title ?? null,
+    category: rule.category ?? null,
+    severity: rule.severity ?? null,
+    location: location.path
+      ? `${location.path}:${location.start_line ?? "?"}-${location.end_line ?? "?"}`
+      : null,
+    message: withhold ? WITHHELD : clip(obj(f.message).text),
+    ...(detail
+      ? {
+          description: clip(rule.description, 1500),
+          help: withhold ? WITHHELD : clip(rule.help, 3000),
+        }
+      : {}),
+    created: f.created_at ?? null,
+    url: f.url ?? null,
+  }
+}
+
+/** Code Quality's REST endpoints are on their own API version. */
+const CODE_QUALITY_INIT: RequestInit = {
+  headers: { "x-github-api-version": "2026-03-10" },
 }
 
 /** Never the `secret` field, nor anything else that could carry it. */
@@ -287,6 +359,61 @@ export async function callSecurityAlertTool(
         repo
       )
       return { repo, ...listed(alerts.map(secretScanningAlert)) }
+    }
+    case "list_code_quality_findings": {
+      const state = argState(args, ["open", "dismissed"])
+      const res = await repoFetch(
+        app,
+        { code_quality: "read" },
+        `/code-quality/findings?state=${state}&per_page=${PER_PAGE}`,
+        CODE_QUALITY_INIT,
+        repo
+      )
+      if (res.status === 404 || res.status === 403) {
+        return {
+          repo,
+          count: 0,
+          alerts: [],
+          note: `Code Quality answered ${res.status}: not enabled here, or the App is not installed on this repository.`,
+        }
+      }
+      if (!res.ok)
+        throw await githubFailure(res, "listing Code Quality findings")
+      const findings = (await res.json()) as Json[]
+      return {
+        repo,
+        ...listed(findings.map((f) => codeQualityFinding(f))),
+      }
+    }
+    case "get_code_quality_finding": {
+      const n = argNumber(args)
+      const finding = await repoApi<Json>(
+        app,
+        { code_quality: "read" },
+        `/code-quality/findings/${n}`,
+        CODE_QUALITY_INIT,
+        "reading the Code Quality finding",
+        repo
+      )
+      return { repo, ...codeQualityFinding(finding, true), note: DATA_NOTE }
+    }
+    case "get_code_quality_setup": {
+      const setup = await repoApi<Json>(
+        app,
+        { code_quality: "read" },
+        "/code-quality/setup",
+        CODE_QUALITY_INIT,
+        "reading the Code Quality setup",
+        repo
+      )
+      return {
+        repo,
+        state: setup.state ?? null,
+        languages: Array.isArray(setup.languages) ? setup.languages : [],
+        schedule: setup.schedule ?? null,
+        aiFindings: setup.ai_findings_option ?? null,
+        updated: setup.updated_at ?? null,
+      }
     }
     case "get_autofix": {
       const n = argNumber(args)

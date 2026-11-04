@@ -10,6 +10,7 @@ import { appJwt, pemToPkcs8 } from "./github-app"
 import { isPreset, PRESET_DEFS, presetPolicy, stricter } from "./presets"
 import { SECURITY_ROUTINE, SECURITY_RULES, securityPolicy } from "./security"
 import {
+  codeQualityFinding,
   codeScanningAlert,
   quotesCredential,
   dependabotAlert,
@@ -510,7 +511,10 @@ describe("Security bot", () => {
       "comment",
       "create_issue",
       "get_autofix",
+      "get_code_quality_finding",
+      "get_code_quality_setup",
       "get_issue",
+      "list_code_quality_findings",
       "list_code_scanning_alerts",
       "list_dependabot_alerts",
       "list_issues",
@@ -652,5 +656,40 @@ describe("Security bot", () => {
     })
     expect(JSON.stringify(alert)).not.toContain("sk-LEAK")
     expect(alert.location).toBe("src/b.ts:1-1")
+  })
+
+  it("reads Code Quality findings, and never changes the setup", () => {
+    const ro = (name: string) =>
+      cofferdamToolReadOnly(SECURITY_GITHUB_CONNECTION, name)
+    expect(ro("list_code_quality_findings")).toBe(true)
+    expect(ro("get_code_quality_finding")).toBe(true)
+    expect(ro("get_code_quality_setup")).toBe(true)
+    expect(ro("update_code_quality_setup")).toBe(false)
+    const tools = cofferdamCatalog(full, "security").tools.map((t) => t.name)
+    expect(tools.some((n) => /setup/.test(n) && !/^get_/.test(n))).toBe(false)
+    const finding = codeQualityFinding(
+      {
+        number: 4,
+        state: "open",
+        rule: {
+          id: "js/unused-variable",
+          title: "Unused variable",
+          category: "maintainability",
+          severity: "note",
+          description: "A variable is never read.",
+          help: "Remove it.",
+        },
+        location: { path: "src/c.ts", start_line: 9, end_line: 9 },
+        message: { text: "x is never read", markdown: "`x` is never read" },
+        url: "https://github.com/cofferdamxyz/lockkeeper/security/quality/4",
+      },
+      true
+    )
+    expect(finding).toMatchObject({
+      rule: "js/unused-variable",
+      category: "maintainability",
+      location: "src/c.ts:9-9",
+      help: "Remove it.",
+    })
   })
 })

@@ -25,7 +25,8 @@ export type TokenPermissions = Partial<
     | "contents"
     | "security_events"
     | "vulnerability_alerts"
-    | "secret_scanning_alerts",
+    | "secret_scanning_alerts"
+    | "code_quality",
     "read" | "write"
   >
 >

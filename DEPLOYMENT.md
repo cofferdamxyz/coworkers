@@ -375,7 +375,9 @@ settings → GitHub Apps → New GitHub App:
 - **Repository permissions:** Code scanning alerts **Read and write** (write is
   what `POST …/autofix` needs; it would also let an App dismiss an alert, which
   this Worker never calls), Dependabot alerts **Read-only**, Secret scanning
-  alerts **Read-only**, Issues **Read and write** (the triage issue and the
+  alerts **Read-only**, Code quality **Read and write** (read is what the
+  findings and setup reads need; write is the founder's choice of 2026-11-03,
+  unused by any tool), Issues **Read and write** (the triage issue and the
   weekly summary), Metadata Read-only. Nothing else: no contents, no pull
   requests, no workflows, no organisation permissions.
 - **Where can this GitHub App be installed:** Only on this account. Create,
@@ -406,10 +408,12 @@ settings → GitHub Apps → New GitHub App:
 of `cofferdamxyz`; its id is in `coworkers.deploy.json` and on the Worker since
 version `36445372`. Its permissions as GitHub reports them: Code scanning
 alerts write, Dependabot alerts read, Secret scanning alerts read, Issues
-write, Metadata read, and **Code quality write**, which was not asked for: the
-Worker never requests it (every token is minted with the one permission its
-call needs), but it widens the ceiling, so set it to No access in the App's
-settings. **10.3 done** the same evening: the founder put the key and
+write, Metadata read, and **Code quality write**, added by the founder so the
+bot reads Code Quality too: its findings and each repository's setup, through
+three read tools on `code_quality: read` tokens (GitHub's public preview API,
+version 2026-03-10). Write would also let a token change a repository's Code
+Quality setup; no tool does, since that is repository configuration and the
+founder's. **10.3 done** the same evening: the founder put the key and
 deleted the download. **10.4 done:** service token `coworkers-security`
 (`1854afb2…`, expires 2027-11-03), both halves on the Worker through the
 script; the reusable policy `Lockkeeper Access from the Security bot`
@@ -417,7 +421,7 @@ script; the reusable policy `Lockkeeper Access from the Security bot`
 beside the founder's email, Claude Code, the Engineering bot and the dispatch
 routine (attached through the API with the app's other settings unchanged).
 Each secret put published a version, so no deploy was needed. Left: the first
-chat ("what is open?"), and Code quality write off.
+chat ("what is open?").
 
 **10.2 The deploy file.** Add `"securityGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
@@ -476,8 +480,8 @@ sign-in, never by hand:
 Created by code (`src/cofferdam/security.ts`) in the owner's hub on the first
 sign-in after the deploy that carries it, never by hand:
 
-- **Reads:** Dependabot, code scanning and secret scanning alerts on the
-  repositories its App is installed on, cut to the fields triage needs (a
+- **Reads:** Dependabot, code scanning and secret scanning alerts, and Code
+  Quality findings and setup, on the repositories its App is installed on, cut to the fields triage needs (a
   secret scanning alert's value is never returned); each CodeQL alert's Copilot
   Autofix; issues of `cofferdamxyz/cofferdam`; Lockkeeper `brief`,
   `in_flight`, `check` with its own token.
@@ -486,7 +490,8 @@ sign-in after the deploy that carries it, never by hand:
   label; comment (the weekly summary, a sentence on a triage issue); request a
   Copilot Autofix.
 - **Never:** labels, `dispatch`, closing, dismissing an alert, accepting or
-  committing a fix (the founder does it on the alert's page), a secret value, a
+  committing a fix (the founder does it on the alert's page), changing a
+  repository's Code Quality setup, a secret value, a
   shell, scripts, the browser, email, managing bots.
 - **Routine:** "Daily security triage", weekdays 08:00 São Paulo, read-only:
   what to land, what it would file, which CodeQL alerts lack an Autofix; on
