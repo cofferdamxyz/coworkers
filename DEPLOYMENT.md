@@ -617,6 +617,10 @@ settings → GitHub Apps → New GitHub App:
   Issues **Read and write** (the daily note on the standing ops issue; the
   code comments only on `ops` issues), Metadata Read-only. Nothing else.
 - **Install App** → `cofferdamxyz` → Only select repositories → `cofferdam`.
+- **Logo:** Display information → upload
+  `cofferdam-branding/assets/github/bot-ops-idle-transparent.png` (the tan
+  square head with Cerulean ears), **Badge background color** `0b1124`, as for
+  the other two bots.
 
 **11.2 The deploy file.** Add `"opsGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
