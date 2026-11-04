@@ -6,12 +6,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["fullscreen"],
-  "theme_color": "#ffffff",
+  "theme_color": "#0a0a0a",
   "background_color": "#0a0a0a",
-  "color_scheme_dark": {
-    "theme_color": "#0a0a0a"
-  },
   "icons": [
     {
       "src": "/icons/icon-192.png",
