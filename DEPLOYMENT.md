@@ -679,8 +679,31 @@ good); an id reused for a different message still delivers it. Every other tool 
 agent that called `message_bot` without the id now gets `invalid` and must
 send one.
 
-**12.2 The portal, the OS connector and the rule** follow; 12.1 is deployed
-(`a770952d`).
+**12.2 The portal — founder, Zero Trust dashboard.** Zero Trust → Access
+controls → MCP Portals:
+
+1. **MCP servers** tab → **Add MCP server**. Name `Coworkers`, **Server ID**
+   exactly `coworkers` (the portal names its tools `coworkers_<tool>` and the
+   OS grant pins that id), **HTTP URL** `https://bots.cofferdam.xyz/mcp`.
+   Access policy: Allow, your email only. **OAuth credentials:** Automatic
+   (Coworkers registers the client itself; `/oauth/register` and `/mcp` are on
+   the Access bypass list, step 2). **Save and connect server**: you land on
+   Coworkers' consent page through Access; grant **Act** (never Manage). This
+   is the server's admin credential. Wait for **Ready**.
+2. Under that server's tools, enable **`message_bot` only**; every other
+   tool off (the OS grant pins it too; two locks, not one).
+3. **Server portals** → **Add server portal**. Name `Cofferdam`, custom domain
+   `mcp.cofferdam.xyz`, add the `Coworkers` server. **Require user auth:
+   Disabled** for it, so the portal uses the admin credential of 1 (the OS
+   connects as you; a per-user OAuth through the portal's browser page is
+   something the OS connector cannot answer). Leave context optimization (Code
+   Mode) off: the OS connector needs the tools themselves. Access policy:
+   Allow, your email only. **Save portal**.
+4. Tell the session the portal's URL (`https://mcp.cofferdam.xyz/mcp`); it
+   deploys the OS connector with it (12.3).
+
+**12.3 The OS connector and the rule** follow (the session, then the founder in
+Cofferdam OS).
 
 ## The Engineering bot
 
