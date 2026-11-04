@@ -386,8 +386,10 @@ settings → GitHub Apps → New GitHub App:
   Issues write is the ceiling everywhere; the Worker mints every token for one
   repository and one permission, and its issue tools reach `cofferdam` only, so
   an issue on a public product repository is refused in code.
-- Logo: none yet (`cofferdam-branding/assets/github/` has the Engineering
-  bot's only); GitHub's default until the brand adds one.
+- Logo: after creating the App, its **Display information** → upload
+  `cofferdam-branding/assets/github/bot-security-idle-transparent.png` (the
+  steel hexagon head with Cerulean ears), **Badge background color** `0b1124`,
+  as for the Engineering bot.
 
 **10.2 The deploy file.** Add `"securityGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
