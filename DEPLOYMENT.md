@@ -386,6 +386,16 @@ settings → GitHub Apps → New GitHub App:
   Issues write is the ceiling everywhere; the Worker mints every token for one
   repository and one permission, and its issue tools reach `cofferdam` only, so
   an issue on a public product repository is refused in code.
+- **Future additions, ruled 2026-11-03:** `self` (public fork of Self.xyz),
+  `cofferdam-footage` (private), `cofferdam-prover` (public) and
+  `enterprise-contracts` (private, the `base-contracts` submodule). Each one
+  goes into `REPOSITORIES` in `src/cofferdam/config.ts` first, in a reviewed
+  commit, and is deployed; then it is added to this installation. In that
+  order, because the bot refuses a repository missing from the list, and the
+  list is also what the bots ask Lockkeeper about, so Lockkeeper should watch
+  the repository too. Not yet: a private repository answers secret scanning
+  and code scanning only with GitHub's paid add-ons, and `self` is a fork whose
+  alerts are mostly upstream's.
 - Logo: after creating the App, its **Display information** → upload
   `cofferdam-branding/assets/github/bot-security-idle-transparent.png` (the
   steel hexagon head with Cerulean ears), **Badge background color** `0b1124`,

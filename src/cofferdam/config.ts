@@ -54,7 +54,12 @@ export const LISTED_BOTS = [
 /** Lockkeeper's MCP tools a preset bot may call: reads only. */
 export const LOCKKEEPER_TOOLS = ["brief", "in_flight", "check"] as const
 
-/** The repositories Lockkeeper watches, for the bot's `repo` arguments. */
+/**
+ * The repositories Lockkeeper watches, for the bots' `repo` arguments, and the
+ * only ones the Security bot reads alerts from. Ruled future additions
+ * (DEPLOYMENT.md step 10): self, cofferdam-footage, cofferdam-prover,
+ * enterprise-contracts. Add one here before installing the Security App on it.
+ */
 export const REPOSITORIES = [
   "cofferdam",
   "cofferdam-app",
