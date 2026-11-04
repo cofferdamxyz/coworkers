@@ -404,6 +404,11 @@ from Lockkeeper.
 
 ## 9. The fork's repository settings — founder, GitHub
 
+**Done 2026-11-04:** Dependabot security updates on (`gh api -X PUT
+repos/cofferdamxyz/coworkers/automated-security-fixes`), after the Security
+bot found three critical alerts with no pull request: `@tanstack/react-start`
+(direct, 1.168.60), `@tanstack/start-server-core` and `seroval` (transitive).
+
 - Settings → Code security: **Dependabot alerts** and **Dependabot security
   updates** on (GitHub leaves both off on a fork). `.github/dependabot.yml`
   groups them; version updates are off for the reason it gives.
