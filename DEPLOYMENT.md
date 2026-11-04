@@ -700,7 +700,9 @@ controls → MCP Portals:
    tool off (the OS grant pins it too; two locks, not one).
 3. **Server portals** → **Add server portal**. Name `Cofferdam`, custom domain
    `mcp.cofferdam.xyz`, add the `Coworkers` server. **Require user auth:
-   Disabled** for it, so the portal uses the admin credential of 1 (the OS
+   Disabled** for it (on the server's row in the portal's own editor, not on
+   the server's page; left on, the OS's connect lands on Coworkers' consent page
+   for a per-user grant asking `coworkers.read`, found 2026-11-04), so the portal uses the admin credential of 1 (the OS
    connects as you; a per-user OAuth through the portal's browser page is
    something the OS connector cannot answer). Leave context optimization (Code
    Mode) off: the OS connector needs the tools themselves. **Managed OAuth**
