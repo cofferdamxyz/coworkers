@@ -810,6 +810,10 @@ sign-in after the deploy that carries it, never by hand:
 - **Routine:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only.
 - Its connections (`cofferdam-ops-github`, `cofferdam-ops-spend`) are listed
   only to it.
+- **Planned (workspace runbook `agentic-loop-completion.md`, joint 10, ruled
+  2026-11-04):** a daily DevOps report from Cofferdam OS (expiring credentials,
+  Worker health and deploys, D1, Hyperdrive and PlanetScale), arriving like the
+  Billing review. The bot gets no Cloudflare credential for it.
 
 ## Deployments
 
