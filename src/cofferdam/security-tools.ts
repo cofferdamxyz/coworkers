@@ -20,12 +20,11 @@
  * 2026-11-03), so a Dependabot pull request's advisories and CI result are
  * read rather than guessed from its branch name.
  *
- * Two tools write, each asking like every other write: `request_autofix`
- * (GitHub generates a suggestion; nothing is committed) and
- * `request_dependabot_rebase` (added 2026-11-04), the bot's one write on a
- * product repository: the fixed comment `@dependabot rebase` on an open pull
- * request Dependabot opened, so it rebases onto main and runs CI there. No
- * other text, no other author's pull request. Accepting a suggestion,
+ * Only `request_autofix` writes (GitHub generates a suggestion; nothing is
+ * committed), so it asks like every other write. No tool asks Dependabot to
+ * rebase: tried 2026-11-04 on lockkeeper#5, Dependabot answered "only users
+ * with push access can use that command", and push access (Contents write)
+ * is never this App's. Accepting a suggestion,
  * dismissing an alert and committing are not tools here: the founder does
  * them on GitHub.
  */
@@ -198,24 +197,6 @@ export const SECURITY_ALERT_TOOLS: ToolDef[] = [
       required: ["repo", "number"],
     },
     readOnly: true,
-  },
-  {
-    name: "request_dependabot_rebase",
-    description:
-      "Ask Dependabot to rebase one of its own open pull requests onto main (posts exactly `@dependabot rebase`), so CI runs on the latest main. Refused on any pull request Dependabot did not open. Always asks the user.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        repo: repoArg,
-        number: {
-          type: "integer",
-          minimum: 1,
-          description: "Dependabot's pull request number.",
-        },
-      },
-      required: ["repo", "number"],
-    },
-    readOnly: false,
   },
   {
     name: "request_autofix",
@@ -582,25 +563,6 @@ async function latestComments(
   return (await res.json()) as Json[]
 }
 
-/** The rebase comment's token: the one place Pull requests write is used. */
-export const REBASE_PERMISSIONS: TokenPermissions = {
-  issues: "write",
-  pull_requests: "write",
-}
-
-/** The only text the bot ever posts on a product repository. */
-export const DEPENDABOT_REBASE = "@dependabot rebase"
-
-/** Why the bot may not ask Dependabot to rebase this pull request, or null. */
-export function rebaseRefusal(pr: Json): string | null {
-  if (obj(pr.user).login !== "dependabot[bot]") {
-    return "Dependabot did not open this pull request."
-  }
-  if (pr.state !== "open") return "The pull request is not open."
-  if (pr.merged === true) return "The pull request is already merged."
-  return null
-}
-
 export function pullRequest(p: Json) {
   const head = obj(p.head)
   return {
@@ -856,39 +818,6 @@ export async function callSecurityAlertTool(
           : clip(fix.description, 4000),
         started: fix.started_at ?? null,
         note: DATA_NOTE,
-      }
-    }
-    case "request_dependabot_rebase": {
-      const v = Number(args.number)
-      if (!Number.isInteger(v) || v < 1)
-        throw new Error("number must be a pull request number.")
-      const pr = await repoApi<Json>(
-        app,
-        { pull_requests: "read" },
-        `/pulls/${v}`,
-        {},
-        "reading the pull request",
-        repo
-      )
-      const refusal = rebaseRefusal(pr)
-      if (refusal) throw new Error(`Not asked: ${refusal}`)
-      // A comment on a pull request needs Pull requests write on the token
-      // (403 with Issues write alone, lockkeeper#5, 2026-11-04); this is the
-      // only call that ever mints it.
-      const comment = await repoApi<Json>(
-        app,
-        REBASE_PERMISSIONS,
-        `/issues/${v}/comments`,
-        { method: "POST", body: JSON.stringify({ body: DEPENDABOT_REBASE }) },
-        "asking Dependabot to rebase",
-        repo
-      )
-      return {
-        repo,
-        pullRequest: v,
-        asked: true,
-        url: comment.html_url ?? null,
-        note: "Dependabot acknowledges with a reaction and rebases within minutes; read the pull request again for CI. If it never rebases, Dependabot ignored a command from this App: say so.",
       }
     }
     case "request_autofix": {

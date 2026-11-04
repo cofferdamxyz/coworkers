@@ -15,9 +15,7 @@ import {
   featureOff,
   nextPath,
   callSecurityAlertTool,
-  DEPENDABOT_REBASE,
   pullRequest,
-  rebaseRefusal,
   severities,
   summarize,
   quotesCredential,
@@ -477,6 +475,7 @@ describe("Security bot", () => {
     expect(policy).toMatch(/never apply `dispatch`/)
     expect(policy).toMatch(/never the value/)
     expect(policy).toMatch(/Lockkeeper's brief for that repository/)
+    expect(policy).toMatch(/ask the founder to comment it/)
     expect(policy).toMatch(/changes no permission/)
     expect(PRESET_DEFS.security.policy()).toBe(policy)
   })
@@ -531,7 +530,6 @@ describe("Security bot", () => {
       "list_pull_requests",
       "list_secret_scanning_alerts",
       "request_autofix",
-      "request_dependabot_rebase",
       "search_issues",
     ])
     const ro = (name: string) =>
@@ -977,63 +975,6 @@ describe("Security bot", () => {
       })
     })
 
-    it("posts the rebase comment with Pull requests write, on Dependabot's pull request only", async () => {
-      const minted: unknown[] = []
-      const posted: unknown[] = []
-      const fetcher = vi.fn(
-        async (input: string | URL | Request, init?: RequestInit) => {
-          const url = new URL(
-            String(input instanceof Request ? input.url : input)
-          )
-          if (url.pathname.endsWith("/installation"))
-            return Response.json({ id: 1 })
-          if (url.pathname.endsWith("/access_tokens")) {
-            minted.push(JSON.parse(String(init?.body)))
-            return Response.json({
-              token: "t",
-              expires_at: new Date(Date.now() + 3600_000).toISOString(),
-            })
-          }
-          if (url.pathname.endsWith("/pulls/5")) {
-            return Response.json({
-              number: 5,
-              state: "open",
-              user: { login: "dependabot[bot]" },
-            })
-          }
-          if (url.pathname.endsWith("/pulls/6")) {
-            return Response.json({
-              number: 6,
-              state: "open",
-              user: { login: "someone" },
-            })
-          }
-          if (url.pathname.endsWith("/issues/5/comments")) {
-            posted.push(JSON.parse(String(init?.body)))
-            return Response.json({ html_url: "https://github.com/c/5#c" })
-          }
-          return new Response("not found", { status: 404 })
-        }
-      )
-      vi.stubGlobal("fetch", fetcher)
-      await callSecurityAlertTool(app, "request_dependabot_rebase", {
-        repo: "lockkeeper",
-        number: 5,
-      })
-      expect(posted).toEqual([{ body: "@dependabot rebase" }])
-      expect(minted).toContainEqual({
-        repositories: ["lockkeeper"],
-        permissions: { issues: "write", pull_requests: "write" },
-      })
-      await expect(
-        callSecurityAlertTool(app, "request_dependabot_rebase", {
-          repo: "lockkeeper",
-          number: 6,
-        })
-      ).rejects.toThrow(/did not open/)
-      expect(posted).toHaveLength(1)
-    })
-
     it("answers not enabled when code scanning is off, and fails on a rate limit", async () => {
       github((url) =>
         url.pathname.endsWith("/code-scanning/alerts")
@@ -1068,25 +1009,5 @@ describe("Security bot", () => {
         })
       ).rejects.toThrow(/403/)
     })
-  })
-
-  it("asks Dependabot to rebase only its own open pull requests, asking first", () => {
-    expect(
-      cofferdamToolReadOnly(
-        SECURITY_GITHUB_CONNECTION,
-        "request_dependabot_rebase"
-      )
-    ).toBe(false)
-    expect(DEPENDABOT_REBASE).toBe("@dependabot rebase")
-    expect(
-      rebaseRefusal({ user: { login: "dependabot[bot]" }, state: "open" })
-    ).toBeNull()
-    expect(
-      rebaseRefusal({ user: { login: "CofferdamDev" }, state: "open" })
-    ).toMatch(/did not open/)
-    expect(
-      rebaseRefusal({ user: { login: "dependabot[bot]" }, state: "closed" })
-    ).toMatch(/not open/)
-    expect(securityPolicy()).toMatch(/only write on a product repository/)
   })
 })

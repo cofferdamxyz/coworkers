@@ -321,6 +321,13 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**2026-11-04, the rebase tool removed:** with Pull requests write the bot's
+comment posted on `lockkeeper#5` at 13:51:03 UTC as
+`cofferdam-security-bot[bot]`, and Dependabot answered four seconds later
+"Sorry, only users with push access can use that command." The tool and its
+permission are out of the code; the policy tells the bot to ask the founder
+for the comment. The founder sets the App's Pull requests back to Read-only.
+
 **Deployed 2026-11-04** as `73f8fcc7` from `main` at `f4d2dac`: the rebase
 comment's token carries Pull requests write (the first try on `lockkeeper#5`
 answered 403 with Issues write alone).
@@ -417,11 +424,10 @@ settings → GitHub Apps → New GitHub App:
   this Worker never calls), Dependabot alerts **Read-only**, Secret scanning
   alerts **Read-only**, Code quality **Read and write** (read is what the
   findings and setup reads need; write is the founder's choice of 2026-11-03,
-  unused by any tool), Pull requests **Read and write** (read added by the
-  founder 2026-11-03: a Dependabot pull request's advisories and CI result are
-  read, not guessed from its branch; write 2026-11-04, because GitHub refuses a
-  comment on a pull request without it, used by one call only, the fixed
-  `@dependabot rebase`), Issues **Read and write** (the triage issue
+  unused by any tool), Pull requests **Read-only** (added by the founder
+  2026-11-03: a Dependabot pull request's advisories and CI result are read,
+  not guessed from its branch; write was granted 2026-11-04 for a rebase
+  request that Dependabot refused, see below, and goes back to read), Issues **Read and write** (the triage issue
   and the weekly summary; read on a product repository for a pull request's
   CI comment), Metadata Read-only. Nothing else: no contents, no pull
   requests, no workflows, no organisation permissions.
@@ -547,10 +553,11 @@ sign-in after the deploy that carries it, never by hand:
 - **Writes, each on an approval card, never in a background turn:** file the
   triage issue in `cofferdam` with the `security` label and no other lane
   label; comment (the weekly summary, a sentence on a triage issue); request a
-  Copilot Autofix; ask Dependabot to rebase one of its own open pull requests
-  (the fixed comment `@dependabot rebase`, added 2026-11-04 so a pull request
-  with no CI result runs CI on the latest main), the bot's only write on a
-  product repository.
+  Copilot Autofix. Nothing on a product repository: a `@dependabot rebase`
+  tool was built and tested on 2026-11-04 (`lockkeeper#5`); the comment
+  posted, and Dependabot answered "only users with push access can use that
+  command". Push access is Contents write, never this App's, so the tool was
+  removed; the bot asks the founder to comment it instead.
 - **Never:** labels, `dispatch`, closing, dismissing an alert, accepting or
   committing a fix (the founder does it on the alert's page), changing a
   repository's Code Quality setup, a secret value, a
