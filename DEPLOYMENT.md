@@ -107,7 +107,7 @@ installer lists it (`scripts/setup.ts`, `BYPASS_PATHS`).
   - `/mcp` — the MCP server outside agents call (OAuth bearer tokens)
   - `/oauth/token`, `/oauth/register` — the OAuth server's token and client registration endpoints
   - `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource` — OAuth discovery
-  - `/manifest.webmanifest`, `/sw.js`, `/icons` — the install files (no secrets; a phone fetches them without the Access cookie, and "Add to Home Screen" fails without them). Upstream renamed `/manifest.json` (fayazara/coworkers#18): **to do by the founder in the dashboard** when the theme-tokens merge deploys, replace the `/manifest.json` destination with `/manifest.webmanifest`. Until then the manifest link sends the Access cookie (`crossOrigin: use-credentials`), so installs keep working.
+  - `/manifest.webmanifest`, `/sw.js`, `/icons` — the install files (no secrets; a phone fetches them without the Access cookie, and "Add to Home Screen" fails without them). Upstream renamed `/manifest.json` (fayazara/coworkers#18). **Done 2026-11-04** by the founder in the dashboard: `/manifest.webmanifest` added (it answers 200 `application/manifest+json` without the Access cookie). **Still to do:** delete the old `/manifest.json` destination; nothing is served there any more (the Worker answers 404). The manifest link also sends the Access cookie (`crossOrigin: use-credentials`), so installs work either way.
 - Policy: Bypass, include Everyone.
 - Left out on purpose: `/apps`, the share links for small web apps a bot builds.
   Behind Access they open for you only, which is what joint 3 needs; add the
@@ -300,8 +300,10 @@ hits it. Once it lands, the next upstream merge carries it and our copy goes.
 Security bot (471f6c4, step 10; its App, key and token not yet created, so its
 two connections show failed) and the theme tokens and brand of
 fayazara/coworkers#22 (`d641647`, `ddfb79f`). Tests 211 passed on that commit
-before the deploy. `/manifest.webmanifest` still answers with the Access
-sign-in until the founder's path change in step 2; `/sw.js` is public.
+before the deploy. `/manifest.webmanifest` answered with the Access
+sign-in until the founder's path change in step 2, made the same night: checked
+afterwards, it answers 200 `application/manifest+json` without the cookie;
+`/sw.js` is public.
 
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
