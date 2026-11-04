@@ -321,6 +321,16 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04 18:23 UTC** as `7f77d094` from `main` at `8695bd9`: the
+Ops bot's App, `Cofferdam Ops Bot` (slug `cofferdam-ops-bot`, App ID 5615846;
+Contents read, Issues write, Metadata read, on selected repositories), its key
+put as `OPS_GITHUB_APP_PRIVATE_KEY` at 18:20 (version `4d1d230e`). The first
+`secret put` ran from the workspace root with a bare `..`, loaded no `.envrc`
+and created a Worker named `coworkers` in the founder's personal account; the
+founder deleted it the same minute and put the key again with the full path
+(step 10.3). Checked after: `/` redirects to Access, the Worker holds its 12
+secrets.
+
 **Deployed 2026-11-04 18:08 UTC** as `32f5ba2f` from `main` at `ef51e3b`: the
 Ops bot (step 11, The Ops bot). Tests 231 passed, typecheck clean, dry run
 clean. `OPS_GITHUB_APP_ID` is still empty: the bot appears in the hub on the
