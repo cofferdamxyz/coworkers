@@ -316,6 +316,11 @@ Checked after: the live manifest carries the new colours, `/` still redirects to
 Access. An installed app picks the colours up when Chrome refreshes it, or on a
 reinstall.
 
+**Redeployed 2026-11-04 02:09 UTC** as `c2d71868` from `main` at `149c2c7`: the
+same code as `abc5e93a` (the commit since is this file only), by the Security
+session, whose three tries before that failed with `fetch failed` on the
+script upload while Cloudflare reported a partial outage (Curitiba degraded).
+
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
 came back with Lockkeeper's branches, pull requests, the Dependabot queue and
