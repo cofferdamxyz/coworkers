@@ -321,6 +321,10 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04** as `1484ae4b` from `main` at `12d407b`: the Security
+bot names the commit behind a fix the founder landed by hand, from
+Lockkeeper's "Landed on" list.
+
 **Deployed 2026-11-04** as `0c8301bf` from `main` at `0ed17d0`: a pull
 request's comments read with Pull requests on the token too, so a private
 repository's CI comment answers (cofferdam-pages#18 had answered 403). Two
