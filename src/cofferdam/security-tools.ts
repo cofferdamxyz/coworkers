@@ -527,7 +527,18 @@ export function severities(
   return `&severity=${list.join(",")}`
 }
 
-/** The last page of an issue's or pull request's comments, oldest first. */
+/**
+ * The last page of a pull request's comments, oldest first. A pull request's
+ * comments live on its issue, and on a private repository GitHub also wants
+ * Pull requests on the token (found on cofferdam-pages#18, 2026-11-03: 403
+ * "Resource not accessible by integration" with Issues alone, while the
+ * public repositories answered), so the token carries both, read only.
+ */
+const COMMENTS_PERMISSIONS: TokenPermissions = {
+  issues: "read",
+  pull_requests: "read",
+}
+
 async function latestComments(
   app: Partial<GitHubAppEnv>,
   repo: string,
@@ -535,7 +546,7 @@ async function latestComments(
 ): Promise<Json[]> {
   const first = await repoFetch(
     app,
-    { issues: "read" },
+    COMMENTS_PERMISSIONS,
     `/issues/${n}/comments?per_page=${PER_PAGE}`,
     {},
     repo
@@ -544,7 +555,7 @@ async function latestComments(
   const comments = (await first.json()) as Json[]
   const last = nextPath(first.headers.get("link"), repo, "last")
   if (!last) return comments
-  const res = await repoFetch(app, { issues: "read" }, last, {}, repo)
+  const res = await repoFetch(app, COMMENTS_PERMISSIONS, last, {}, repo)
   if (!res.ok) throw await githubFailure(res, "reading the latest comments")
   return (await res.json()) as Json[]
 }

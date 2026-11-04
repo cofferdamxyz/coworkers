@@ -926,6 +926,53 @@ describe("Security bot", () => {
       ])
     })
 
+    it("reads a pull request's comments with Pull requests on the token too", async () => {
+      const minted: unknown[] = []
+      const fetcher = vi.fn(
+        async (input: string | URL | Request, init?: RequestInit) => {
+          const url = new URL(
+            String(input instanceof Request ? input.url : input)
+          )
+          if (url.pathname.endsWith("/installation"))
+            return Response.json({ id: 1 })
+          if (url.pathname.endsWith("/access_tokens")) {
+            minted.push(JSON.parse(String(init?.body)))
+            return Response.json({
+              token: "t",
+              expires_at: new Date(Date.now() + 3600_000).toISOString(),
+            })
+          }
+          if (url.pathname.endsWith("/pulls/18")) {
+            return Response.json({
+              number: 18,
+              title: "next",
+              head: { ref: "b", sha: "s" },
+            })
+          }
+          if (url.pathname.endsWith("/issues/18/comments")) {
+            return Response.json([
+              {
+                user: { login: "github-actions[bot]" },
+                body: "CI passed",
+                created_at: "t",
+              },
+            ])
+          }
+          return new Response("not found", { status: 404 })
+        }
+      )
+      vi.stubGlobal("fetch", fetcher)
+      const out = (await callSecurityAlertTool(app, "get_pull_request", {
+        repo: "cofferdam-pages",
+        number: 18,
+      })) as { botComments: { body: string }[] }
+      expect(out.botComments[0].body).toBe("CI passed")
+      expect(minted).toContainEqual({
+        repositories: ["cofferdam-pages"],
+        permissions: { issues: "read", pull_requests: "read" },
+      })
+    })
+
     it("answers not enabled when code scanning is off, and fails on a rate limit", async () => {
       github((url) =>
         url.pathname.endsWith("/code-scanning/alerts")
