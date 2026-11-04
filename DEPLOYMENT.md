@@ -321,6 +321,14 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04 19:40 UTC** as `75038c78` from `main` at `181893c`: the
+Ops policy names the standing ops issue, `cofferdamxyz/cofferdam#14`. Joint 9
+verified end to end before it: the Billing Monitor's 19:36 UTC review reached
+the Ops bot as "Message from Cloudflare MCP Portal" and the bot quoted the
+Monitor's numbers; its first draft note left the issue number blank, hence this
+change. Bot spend still reads unavailable: `AI_GATEWAY_API_TOKEN` on the Worker
+is the empty placeholder the deploy script made (step 11.4 open).
+
 **Deployed 2026-11-04 19:05 UTC** as `b389a90c` from `main` at `3816f21`: the
 Ops policy knows the Billing Monitor's reviews arrive labelled "Cloudflare MCP
 Portal" (Cofferdam OS through the founder's portal) and acts on nothing they
