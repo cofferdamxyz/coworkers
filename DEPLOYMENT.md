@@ -703,7 +703,11 @@ controls → MCP Portals:
    Disabled** for it, so the portal uses the admin credential of 1 (the OS
    connects as you; a per-user OAuth through the portal's browser page is
    something the OS connector cannot answer). Leave context optimization (Code
-   Mode) off: the OS connector needs the tools themselves. Access policy:
+   Mode) off: the OS connector needs the tools themselves. **Managed OAuth**
+   on, and under its **Allowed redirect URIs** add
+   `https://os.cofferdam.xyz/gatekeeper/mcp-portal/*` (the OS connector's
+   callback; without it the OS's sign-in fails with "redirect_uri is not
+   allowed by the account configuration", found 2026-11-04). Access policy:
    `coworkers: people` again. **Save portal**. Because the server runs on your
    Act credential for whoever passes the portal, that policy must stay your
    email alone: adding a person to `coworkers: people` would give them the
