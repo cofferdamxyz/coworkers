@@ -685,7 +685,8 @@ controls → MCP Portals:
 1. **MCP servers** tab → **Add MCP server**. Name `Coworkers`, **Server ID**
    exactly `coworkers` (the portal names its tools `coworkers_<tool>` and the
    OS grant pins that id), **HTTP URL** `https://bots.cofferdam.xyz/mcp`.
-   Access policy: Allow, your email only. **OAuth credentials:** Automatic
+   Access policy: the reusable `coworkers: people` (Allow, your email only).
+   **OAuth credentials:** Automatic
    (Coworkers registers the client itself; `/oauth/register` and `/mcp` are on
    the Access bypass list, step 2). **Save and connect server**: you land on
    Coworkers' consent page through Access; grant **Act** (never Manage). This
@@ -698,7 +699,10 @@ controls → MCP Portals:
    connects as you; a per-user OAuth through the portal's browser page is
    something the OS connector cannot answer). Leave context optimization (Code
    Mode) off: the OS connector needs the tools themselves. Access policy:
-   Allow, your email only. **Save portal**.
+   `coworkers: people` again. **Save portal**. Because the server runs on your
+   Act credential for whoever passes the portal, that policy must stay your
+   email alone: adding a person to `coworkers: people` would give them the
+   bots site and the portal acting as you.
 4. Tell the session the portal's URL (`https://mcp.cofferdam.xyz/mcp`); it
    deploys the OS connector with it (12.3).
 
