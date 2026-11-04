@@ -111,8 +111,10 @@ describe("theme tokens", () => {
     }
   })
 
+  // Cofferdam: the brand layer (src/cofferdam/brand) sets the surface, and
+  // src/cofferdam/brand.test.ts checks THEME_COLORS against it instead.
   it("paints the browser chrome in the main surface color", () => {
     expect(toHex(light.get("--brand-surface") ?? "")).toBe(THEME_COLORS.light)
-    expect(toHex(dark.get("--brand-surface") ?? "")).toBe(THEME_COLORS.dark)
+    expect(toHex(dark.get("--brand-surface") ?? "")).toMatch(/^#[0-9a-f]{6}$/)
   })
 })

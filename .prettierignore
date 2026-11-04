@@ -1,3 +1,5 @@
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
+# Cofferdam: copied verbatim from cofferdam-branding.
+src/cofferdam/brand/brand.generated.css

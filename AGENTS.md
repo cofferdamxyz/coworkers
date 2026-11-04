@@ -36,6 +36,13 @@ and the rest of this file (below the line) is upstream's own guide.
   value), issue reads, and filing and comments in the `security` lane only. The
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
   per-permission tokens for any App. Tests in `cofferdam.test.ts`.
+- `src/cofferdam/brand/`: the Cofferdam brand over upstream's theme tokens
+  (`docs/theming.md`). `brand.generated.css` and `fonts/` (Geist, Geist Mono)
+  are copied verbatim from `cofferdam-branding` (`dist/pages/brand.generated.css`,
+  `fonts/`); never edit a value there, change the brand and copy again.
+  `theme.css` points the `--brand-*` tokens at the `--cd-*` ones: ink primary
+  actions, the accent for focus, links and selection, Geist everywhere. Tests
+  in `brand.test.ts`.
 - Small, marked hooks in upstream files (each starts with a `Cofferdam:` comment):
   `src/agents/user-hub.ts` (provisions each preset bot for the owner once; lists
   and routes a preset's deployment connections to the bot holding it only),
@@ -44,7 +51,12 @@ and the rest of this file (below the line) is upstream's own guide.
   `cloudflare.config.ts` (custom domain, no workers.dev, Claude through the
   bots' own `cofferdam-coworkers` gateway, no fallback model, email off, the Cofferdam bindings),
   `pnpm-workspace.yaml` (pnpm 11's `allowBuilds`), `public/` (the manifest; the icons and favicon are the Engineering bot's head on the brand gradient, `scripts/make-icons.sh`, so a tab is told apart from cofferdam.xyz),
-  `src/routes/__root.tsx` (the installed app's name).
+  `src/routes/__root.tsx` (the installed app's name), `src/styles.css` (imports
+  the brand layer), `src/lib/theme.ts` (the brand's dark `web-bg` as the browser
+  chrome, and the `.dark` class its generated sheet keys on), `public/sw.js` (the
+  offline page in brand colours), `scripts/make-dark-splashes.sh` (the dark iOS
+  stills on the brand's dark `web-bg`), `src/theme/tokens.test.ts` (leaves the
+  dark chrome colour to `brand.test.ts`).
 - `scripts/cofferdam-deploy.ts`: the deploy. `.github/`: CI and Dependabot.
 
 ## Rules

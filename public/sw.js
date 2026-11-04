@@ -22,11 +22,11 @@ const OFFLINE_PAGE = `<!doctype html>
   } catch (e) {}
 </script>
 <style>
-  /* The defaults of src/theme/tokens.css; this page loads no stylesheet. */
-  :root { color-scheme: light; --bg: #ffffff; --text: #111; --subtle: #555; }
-  :root[data-mode="dark"] { color-scheme: dark; --bg: #0f0f0f; --text: #f5f5f5; --subtle: #a3a3a3; }
+  /* Cofferdam: cofferdam-branding's web-bg, fg and fg-muted; this page loads no stylesheet. */
+  :root { color-scheme: light; --bg: #ffffff; --text: #1a1a1a; --subtle: #595959; }
+  :root[data-mode="dark"] { color-scheme: dark; --bg: #0a0a0a; --text: #ffffff; --subtle: #b0b4ba; }
   body { margin: 0; height: 100dvh; display: grid; place-content: center; gap: 12px;
-    font: 15px system-ui, sans-serif; text-align: center; color: var(--subtle); background: var(--bg); }
+    font: 15px Geist, system-ui, sans-serif; text-align: center; color: var(--subtle); background: var(--bg); }
   h1 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
   button { justify-self: center; height: 44px; padding: 0 20px; border: 0;
     border-radius: 22px; background: var(--text); color: var(--bg); font: inherit; }

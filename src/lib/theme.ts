@@ -7,7 +7,8 @@ export const THEME_STORAGE_KEY = "coworkers-theme"
  */
 export const THEME_COLORS = {
   light: "#ffffff",
-  dark: "#0f0f0f",
+  // Cofferdam: cofferdam-branding's dark web-bg (src/cofferdam/brand).
+  dark: "#0a0a0a",
 } as const
 
 /** The mode the page is drawn in. */
@@ -94,6 +95,8 @@ export function applyTheme(theme: Theme): void {
   if (typeof document === "undefined") return
   const root = document.documentElement
   root.dataset.mode = theme
+  // Cofferdam: the brand's generated sheet keys its dark values on `.dark`.
+  root.classList.toggle("dark", theme === "dark")
   root.style.colorScheme = theme
   document
     .querySelector('meta[name="theme-color"]')
@@ -104,4 +107,4 @@ export function applyTheme(theme: Theme): void {
  * Runs in the document head before paint. Keep it dependency-free so a stored
  * choice or the OS preference is applied before the first light surface shows.
  */
-export const THEME_INIT_SCRIPT = `(function(){var t="light";try{var s=localStorage.getItem("${THEME_STORAGE_KEY}");if(s==="light"||s==="dark")t=s;else if(matchMedia("(prefers-color-scheme: dark)").matches)t="dark"}catch(e){}try{var r=document.documentElement;r.dataset.mode=t;r.style.colorScheme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"${THEME_COLORS.dark}":"${THEME_COLORS.light}")}catch(e){}})()`
+export const THEME_INIT_SCRIPT = `(function(){var t="light";try{var s=localStorage.getItem("${THEME_STORAGE_KEY}");if(s==="light"||s==="dark")t=s;else if(matchMedia("(prefers-color-scheme: dark)").matches)t="dark"}catch(e){}try{var r=document.documentElement;r.dataset.mode=t;r.classList.toggle("dark",t==="dark");r.style.colorScheme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"${THEME_COLORS.dark}":"${THEME_COLORS.light}")}catch(e){}})()`

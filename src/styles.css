@@ -2,6 +2,8 @@
 @import "@cloudflare/kumo/styles/tailwind";
 @import "tailwindcss";
 @import "./theme/tokens.css";
+/* Cofferdam: the brand over the token layer (src/cofferdam/brand/theme.css). */
+@import "./cofferdam/brand/theme.css";
 
 /*
  * `dark:` follows the app's mode (Kumo's data-mode), not the OS.

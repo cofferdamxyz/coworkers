@@ -6,7 +6,8 @@
 # Needs ImageMagick 7 (`magick`). Run from the repository root.
 set -eu
 
-BG="#0f0f0f"
+# Cofferdam: the brand's dark web-bg.
+BG="#0a0a0a"
 cd public/icons
 
 # still  robot size  robot position (matched against the light stills)

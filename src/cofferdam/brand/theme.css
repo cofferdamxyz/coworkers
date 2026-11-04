@@ -1,0 +1,98 @@
+/*
+ * Cofferdam: the brand layer. Points the app's --brand-* tokens
+ * (src/theme/tokens.css, docs/theming.md) at cofferdam-branding's --cd-*
+ * tokens, the way cofferdam-pages points shadcn at them.
+ *
+ * brand.generated.css and fonts/ are copied verbatim from cofferdam-branding
+ * (dist/pages/brand.generated.css, fonts/); never edit a value there, change
+ * the brand and copy again. Its dark values sit under `.dark`, which
+ * src/lib/theme.ts sets on <html> with data-mode.
+ *
+ * Brand rules that shape the mapping (rules/cofferdam-design.md):
+ * - the primary action is ink (white on black), never accent-filled, so
+ *   Kumo's primary button reads --cd-fg;
+ * - the accent (Base Blue in light, Cerulean in dark) means proof and focus:
+ *   focus rings, links, selection;
+ * - Geist and Geist Mono everywhere.
+ * Lines and hover fills keep the app's translucent values, as
+ * cofferdam-pages keeps its alpha borders.
+ */
+@import "./brand.generated.css";
+
+@font-face {
+  font-family: "Geist";
+  src: url("./fonts/Geist-Variable-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./fonts/GeistMono-Variable-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --brand-font-sans: var(--cd-font-sans);
+  --brand-font-mono: var(--cd-font-mono);
+
+  --brand-radius-sm: var(--cd-radius-xs);
+  --brand-radius-lg: var(--cd-radius-sm);
+  --brand-radius-xl: var(--cd-radius-md);
+  --brand-radius-2xl: var(--cd-radius-lg);
+  --brand-radius-card: var(--cd-radius-xl);
+  --brand-radius-3xl: var(--cd-radius-xxl);
+  --brand-radius-pill: var(--cd-radius-pill);
+
+  --brand-scrim: var(--cd-overlay);
+}
+
+/* After tokens.css's own mode blocks, so these win in both modes; the
+   --cd-* values switch with `.dark`. */
+:root,
+[data-mode] {
+  --brand-accent: var(--cd-fg);
+  --brand-accent-hover: color-mix(in oklab, var(--cd-fg) 85%, var(--cd-bg));
+  --brand-on-accent: var(--cd-bg);
+  --brand-link: var(--cd-accent);
+  --brand-focus: var(--brand);
+  --brand-selection: var(--brand-dim);
+
+  --brand-canvas: var(--cd-surface);
+  --brand-surface: var(--cd-web-bg);
+  --brand-surface-raised: var(--cd-card);
+  --brand-surface-sunken: var(--cd-surface);
+  --brand-surface-tint: var(--cd-surface-2);
+  --brand-surface-overlay: var(--cd-card);
+  --brand-surface-control: var(--cd-card);
+  --brand-surface-contrast: var(--cd-fg);
+
+  --brand-fill: var(--cd-surface-2);
+  --brand-fill-subtle: var(--cd-surface);
+  --brand-fill-interact: var(--cd-border);
+
+  --brand-text: var(--cd-fg);
+  --brand-text-strong: var(--cd-fg);
+  --brand-text-subtle: var(--cd-fg-muted);
+  --brand-text-placeholder: var(--cd-fg-muted-2);
+  --brand-text-inactive: var(--cd-fg-dim);
+  --brand-text-inverse: var(--cd-bg);
+
+  --brand-hairline: var(--cd-divider);
+
+  --brand-danger: var(--cd-danger);
+  --brand-danger-tint: var(--cd-danger-dim);
+  --brand-danger-text: var(--cd-danger);
+  --brand-warning: var(--cd-warning);
+  --brand-warning-tint: color-mix(in srgb, var(--cd-warning) 12%, transparent);
+  --brand-warning-text: var(--cd-warning);
+  --brand-success: var(--cd-success);
+  --brand-success-tint: color-mix(in srgb, var(--cd-success) 12%, transparent);
+  --brand-success-text: var(--cd-success);
+  --brand-info: var(--cd-info);
+  --brand-info-tint: color-mix(in srgb, var(--cd-info) 12%, transparent);
+  --brand-on-status: var(--cd-bg);
+}

@@ -107,7 +107,7 @@ installer lists it (`scripts/setup.ts`, `BYPASS_PATHS`).
   - `/mcp` — the MCP server outside agents call (OAuth bearer tokens)
   - `/oauth/token`, `/oauth/register` — the OAuth server's token and client registration endpoints
   - `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource` — OAuth discovery
-  - `/manifest.json`, `/sw.js`, `/icons` — the install files (no secrets; a phone fetches them without the Access cookie, and "Add to Home Screen" fails without them)
+  - `/manifest.webmanifest`, `/sw.js`, `/icons` — the install files (no secrets; a phone fetches them without the Access cookie, and "Add to Home Screen" fails without them). Upstream renamed `/manifest.json` (fayazara/coworkers#18): **to do by the founder in the dashboard** when the theme-tokens merge deploys, replace the `/manifest.json` destination with `/manifest.webmanifest`. Until then the manifest link sends the Access cookie (`crossOrigin: use-credentials`), so installs keep working.
 - Policy: Bypass, include Everyone.
 - Left out on purpose: `/apps`, the share links for small web apps a bot builds.
   Behind Access they open for you only, which is what joint 3 needs; add the
