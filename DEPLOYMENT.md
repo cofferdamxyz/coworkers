@@ -305,6 +305,17 @@ sign-in until the founder's path change in step 2, made the same night: checked
 afterwards, it answers 200 `application/manifest+json` without the cookie;
 `/sw.js` is public.
 
+**Deployed 2026-11-04 02:07 UTC (2026-11-03 23:07 in São Paulo)** as
+`abc5e93a` from `main` at `d588eb2`: the installed Android app's manifest
+colours (`theme_color` and `background_color` both the brand's dark `web-bg`
+`#0a0a0a`, so the splash and the system navigation bar are dark; standalone, so
+the status bar stays; `9c9708c`, `d588eb2`) and the Security bot's Code Quality
+tools, read only (`bb3fea6`). Tests 212 passed on that commit. The first attempt
+failed with `fetch failed` after uploading the assets; the retry deployed.
+Checked after: the live manifest carries the new colours, `/` still redirects to
+Access. An installed app picks the colours up when Chrome refreshes it, or on a
+reinstall.
+
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
 came back with Lockkeeper's branches, pull requests, the Dependabot queue and
