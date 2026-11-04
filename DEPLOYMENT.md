@@ -409,8 +409,15 @@ alerts write, Dependabot alerts read, Secret scanning alerts read, Issues
 write, Metadata read, and **Code quality write**, which was not asked for: the
 Worker never requests it (every token is minted with the one permission its
 call needs), but it widens the ceiling, so set it to No access in the App's
-settings. The key (10.3) and the Lockkeeper token (10.4) are next; their three
-secret names exist on the Worker, created empty by the first deploy.
+settings. **10.3 done** the same evening: the founder put the key and
+deleted the download. **10.4 done:** service token `coworkers-security`
+(`1854afb2…`, expires 2027-11-03), both halves on the Worker through the
+script; the reusable policy `Lockkeeper Access from the Security bot`
+(`03f2b46b…`, Service Auth) is the `lockkeeper` application's fifth policy,
+beside the founder's email, Claude Code, the Engineering bot and the dispatch
+routine (attached through the API with the app's other settings unchanged).
+Each secret put published a version, so no deploy was needed. Left: the first
+chat ("what is open?"), and Code quality write off.
 
 **10.2 The deploy file.** Add `"securityGithubAppId": "<App ID>"` to
 `coworkers.deploy.json` (or give the id to the session).
