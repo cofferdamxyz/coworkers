@@ -488,7 +488,7 @@ version 2026-03-10). Write would also let a token change a repository's Code
 Quality setup; no tool does, since that is repository configuration and the
 founder's. **10.3 done** the same evening: the founder put the key and
 deleted the download. **10.4 done:** service token `coworkers-security`
-(`1854afb2…`, expires 2027-11-03), both halves on the Worker through the
+(`1854afb2…`, expires 2027-11-04), both halves on the Worker through the
 script; the reusable policy `Lockkeeper Access from the Security bot`
 (`03f2b46b…`, Service Auth) is the `lockkeeper` application's fifth policy,
 beside the founder's email, Claude Code, the Engineering bot and the dispatch
@@ -592,6 +592,47 @@ versions: `undici` 7.30.1, `sharp` 0.35.5, `zod` 4.6.7. Left open: `minimatch`
 (eslint and `just-bash`, the fix is 11.x, a major) and `esbuild` 0.18 (dev,
 under `drizzle-kit`'s deprecated `@esbuild-kit`).
 
+## 11. Joint 5: the Ops bot — founder, after the session's deploy
+
+Built 2026-11-04 (`src/cofferdam/ops.ts`; ruled the same day: the bot gets its
+own App, Cofferdam OS stays the one billing meter and sends the Billing
+Monitor's review into this bot's chat over MCP at joint 9, and the bot holds
+no billing credential). The deploy that carries it creates the bot in your hub
+on the next sign-in, its connections marked **failed** until these steps.
+
+**11.1 The GitHub App.** github.com → `cofferdamxyz` → Settings → Developer
+settings → GitHub Apps → New GitHub App:
+
+- **Name:** exactly `Cofferdam Ops Bot`, so its slug is `cofferdam-ops-bot`
+  (`src/cofferdam/config.ts` lists `cofferdam-ops-bot[bot]`).
+- **Homepage URL:** `https://bots.cofferdam.xyz`. **Webhook:** untick Active.
+- **Repository permissions:** Contents **Read-only** (its `read_doc`: Markdown
+  under `docs/`, `decisions/`, `rules/`, and `TODO.md`, enforced in code),
+  Issues **Read and write** (the daily note on the standing ops issue; the
+  code comments only on `ops` issues), Metadata Read-only. Nothing else.
+- **Install App** → `cofferdamxyz` → Only select repositories → `cofferdam`.
+
+**11.2 The deploy file.** Add `"opsGithubAppId": "<App ID>"` to
+`coworkers.deploy.json` (or give the id to the session).
+
+**11.3 The key**, in your terminal from this folder:
+
+```bash
+direnv exec .. pnpm dlx wrangler@4.95.0 secret put OPS_GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-ops-bot.*.private-key.pem
+```
+
+```bash
+rm ~/Downloads/cofferdam-ops-bot.*.private-key.pem
+```
+
+**11.4 The bots' spend.** `bots_spend` reads the hub's own sync of the
+`cofferdam-coworkers` gateway logs, the same data as the Spend page, which
+needs `AI_GATEWAY_API_TOKEN` (step 6: an API token with **AI Gateway Read** on
+the Cofferdam account only). Until it is set the Ops bot reports its spend as
+unavailable and the Spend page stays off.
+
+**11.5 Deploy again** (the session), so `OPS_GITHUB_APP_ID` carries the id.
+
 ## The Engineering bot
 
 Created by code (`src/cofferdam/engineering.ts`) in the owner's hub on the first
@@ -650,6 +691,25 @@ sign-in after the deploy that carries it, never by hand:
   2026-11-04; before that the routine stayed as first created).
 - Its connections (`cofferdam-security-github`, `cofferdam-security-lockkeeper`)
   are listed only to it; Engineering's only to Engineering.
+
+## The Ops bot
+
+Created by code (`src/cofferdam/ops.ts`) in the owner's hub on the first
+sign-in after the deploy that carries it, never by hand:
+
+- **Reads:** the Billing Monitor's reviews as messages in its chat (Cofferdam
+  OS, joint 9; the one meter for Cloudflare spend, decision 0045); the bots'
+  own Claude spend (`bots_spend`, the hub's gateway sync, against $250 a month
+  and $8 a day per bot); workspace Markdown (`read_doc`); issues of
+  `cofferdamxyz/cofferdam`. No Lockkeeper, no billing credential.
+- **Writes, each on an approval card, never in a background turn:** a comment
+  on an `ops` issue (the daily note, the Monday checklist).
+- **Never:** labels, filing or closing issues, `dispatch`, company state (the
+  OS's), a payment, a subscription or a credential, a shell, scripts, the
+  browser, email, managing bots.
+- **Routine:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only.
+- Its connections (`cofferdam-ops-github`, `cofferdam-ops-spend`) are listed
+  only to it.
 
 ## Deployments
 

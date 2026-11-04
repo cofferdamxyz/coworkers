@@ -20,11 +20,12 @@ const deploy: Partial<{
   emailDomain: string
   emailZoneId: string
   // Cofferdam: the owner whose hub gets the preset bots, and the
-  // Engineering and Security GitHub Apps' ids. None is secret; all stay in
+  // Engineering, Security and Ops GitHub Apps' ids. None is secret; all stay in
   // the ignored deploy file with the Access values.
   cofferdamOwner: string
   githubAppId: string
   securityGithubAppId: string
+  opsGithubAppId: string
 }> =
   // The installer packs a release for everyone: never with your values.
   !process.env.COWORKERS_PACKING && DEPLOY_FILE
@@ -201,6 +202,12 @@ export default defineConfig({
       SECURITY_GITHUB_APP_PRIVATE_KEY: bindings.secret(),
       SECURITY_LOCKKEEPER_ACCESS_CLIENT_ID: bindings.secret(),
       SECURITY_LOCKKEEPER_ACCESS_CLIENT_SECRET: bindings.secret(),
+      // Cofferdam: the Ops bot's own GitHub App (Contents read and Issues
+      // write on the workspace repository). Its spend comes from the hub's
+      // gateway sync (AI_GATEWAY_API_TOKEN above); it holds no Lockkeeper
+      // token and no billing credential.
+      OPS_GITHUB_APP_ID: bindings.text(deploy.opsGithubAppId ?? ""),
+      OPS_GITHUB_APP_PRIVATE_KEY: bindings.secret(),
     },
   },
 })

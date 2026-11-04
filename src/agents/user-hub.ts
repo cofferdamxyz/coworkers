@@ -16,6 +16,8 @@ import {
   callCofferdamTool,
   cofferdamCatalog,
   isCofferdamConnection,
+  PRESET_CONNECTIONS,
+  spendReport,
 } from "@/cofferdam/tools"
 import type {
   AppCatalog,
@@ -1451,6 +1453,17 @@ export class UserHub extends Agent<Env, HubState> implements HubPort {
       const preset = botId ? this.presetOf(botId) : null
       if (!preset) {
         throw new Error("That connection is not available to this bot.")
+      }
+      // Cofferdam: the Ops bot's spend is the hub's own gateway sync.
+      if (connectionId === PRESET_CONNECTIONS[preset].spend) {
+        if (name !== "bots_spend") throw new Error(`No spend tool named ${name}.`)
+        const names = Object.fromEntries(
+          this.state.bots.map((b) => [b.id, b.name] as const)
+        )
+        const report = spendReport(this.state.spend ?? null, names)
+        return {
+          content: [{ type: "text", text: JSON.stringify(report, null, 2) }],
+        }
       }
       const result = await callCofferdamTool(
         this.env,

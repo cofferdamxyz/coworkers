@@ -21,6 +21,15 @@ import {
   engineeringPolicy,
 } from "./engineering"
 import {
+  OPS_NAME,
+  OPS_PROACTIVE,
+  OPS_ROLE,
+  OPS_ROUTINE,
+  OPS_RULES,
+  OPS_TOOL_RULES,
+  opsPolicy,
+} from "./ops"
+import {
   SECURITY_NAME,
   SECURITY_PROACTIVE,
   SECURITY_ROLE,
@@ -61,6 +70,15 @@ export const PRESET_DEFS: Record<Preset, PresetDef> = {
     proactive: SECURITY_PROACTIVE,
     routine: SECURITY_ROUTINE,
     policy: securityPolicy,
+  },
+  ops: {
+    name: OPS_NAME,
+    role: OPS_ROLE,
+    rules: OPS_RULES,
+    toolRules: OPS_TOOL_RULES,
+    proactive: OPS_PROACTIVE,
+    routine: OPS_ROUTINE,
+    policy: opsPolicy,
   },
 }
 

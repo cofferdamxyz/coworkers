@@ -14,6 +14,7 @@ import {
   routineKey,
   stricter,
 } from "./presets"
+import { OPS_ROUTINE, OPS_RULES, opsPolicy } from "./ops"
 import { SECURITY_ROUTINE, SECURITY_RULES, securityPolicy } from "./security"
 import {
   codeQualityFinding,
@@ -45,8 +46,13 @@ import {
   reportedPullRequest,
   SECURITY_GITHUB_CONNECTION,
   SECURITY_LOCKKEEPER_CONNECTION,
+  OPS_GITHUB_CONNECTION,
+  OPS_SPEND_CONNECTION,
+  opsCommentRefusal,
+  opsDocRefusal,
   securityCommentRefusal,
   securityLabelRefusal,
+  spendReport,
   callCofferdamTool,
 } from "./tools"
 
@@ -1025,6 +1031,195 @@ describe("Security bot", () => {
           repo: "cofferdam-app",
         })
       ).rejects.toThrow(/403/)
+    })
+  })
+})
+
+describe("Ops bot", () => {
+  const env = {
+    OPS_GITHUB_APP_ID: "3",
+    OPS_GITHUB_APP_PRIVATE_KEY: "ops-key",
+    ACCOUNT_ID: "acct",
+    AI_GATEWAY_API_TOKEN: "gw-read",
+    LOCKKEEPER_URL: "https://lockkeeper.example",
+    LOCKKEEPER_ACCESS_CLIENT_ID: "eng-id",
+    LOCKKEEPER_ACCESS_CLIENT_SECRET: "eng-secret",
+  }
+
+  it("is a preset with the same floor, a weekday check-in, read-only", () => {
+    expect(isPreset("ops")).toBe(true)
+    expect(OPS_RULES).toEqual(ENGINEERING_RULES)
+    expect(PRESET_DEFS.ops.name).toBe("Ops")
+    expect(OPS_ROUTINE.when).toBe("0 9 * * 1-5")
+    expect(OPS_ROUTINE.prompt).toMatch(/read only/)
+    expect(OPS_ROUTINE.prompt).toMatch(/Billing Monitor/)
+  })
+
+  it("states a policy with one billing meter and comments on ops issues only", () => {
+    const policy = opsPolicy()
+    expect(policy.startsWith("# Cofferdam policy")).toBe(true)
+    expect(policy).toMatch(/no Cloudflare billing credential/)
+    expect(policy).toMatch(/never estimate Cloudflare spend yourself/)
+    expect(policy).toMatch(/carries the `ops` label/)
+    expect(policy).toMatch(/changes no permission/)
+  })
+
+  it("lists documents, issue reads, its comment and the bots' spend, and no Lockkeeper", () => {
+    const catalog = cofferdamCatalog(env, "ops")
+    expect(catalog.tools.map((t) => t.name).sort()).toEqual([
+      "bots_spend",
+      "comment",
+      "get_issue",
+      "list_issues",
+      "read_doc",
+      "search_issues",
+    ])
+    expect(catalog.apps.map((a) => a.id).sort()).toEqual([
+      OPS_GITHUB_CONNECTION,
+      OPS_SPEND_CONNECTION,
+    ])
+    const ro = (c: string, n: string) => cofferdamToolReadOnly(c, n)
+    expect(ro(OPS_GITHUB_CONNECTION, "read_doc")).toBe(true)
+    expect(ro(OPS_GITHUB_CONNECTION, "comment")).toBe(false)
+    expect(ro(OPS_SPEND_CONNECTION, "bots_spend")).toBe(true)
+    expect(presetHolds("ops", LOCKKEEPER_CONNECTION)).toBe(false)
+    expect(presetHolds("ops", OPS_SPEND_CONNECTION)).toBe(true)
+    expect(presetHolds("engineering", OPS_SPEND_CONNECTION)).toBe(false)
+  })
+
+  it("shows its connections failed until their secrets are there", () => {
+    const empty = cofferdamCatalog({}, "ops")
+    expect(empty.tools).toEqual([])
+    expect(empty.apps.every((a) => a.status === "failed")).toBe(true)
+  })
+
+  it("refuses any write but its comment", async () => {
+    for (const name of ["add_labels", "create_issue", "close_issue"]) {
+      await expect(
+        callCofferdamTool(env, "ops", OPS_GITHUB_CONNECTION, name, {
+          number: 1,
+          labels: ["dispatch"],
+          title: "t",
+          body: "b",
+        })
+      ).rejects.toThrow(/No GitHub tool named/)
+    }
+    await expect(
+      callCofferdamTool(env, "ops", LOCKKEEPER_CONNECTION, "brief", {})
+    ).rejects.toThrow(/not available to this bot/)
+  })
+
+  it("reads workspace Markdown only, and comments on ops issues only", () => {
+    expect(opsDocRefusal("docs/open-decisions.md")).toBeNull()
+    expect(opsDocRefusal("docs/runbooks/development-setup.md")).toBeNull()
+    expect(opsDocRefusal("TODO.md")).toBeNull()
+    expect(
+      opsDocRefusal("decisions/0045-cofferdam-os-billing-gatekeeper.md")
+    ).toBeNull()
+    expect(opsDocRefusal("docs/../.envrc")).toMatch(/inside the repository/)
+    expect(opsDocRefusal(".envrc")).toMatch(/Only Markdown/)
+    expect(opsDocRefusal("cofferdam-api/src/index.ts")).toMatch(/Only Markdown/)
+    expect(opsCommentRefusal({ labels: labels("ops") })).toBeNull()
+    expect(opsCommentRefusal({ labels: labels("security") })).toMatch(
+      /ops label/
+    )
+    expect(
+      opsCommentRefusal({ labels: labels("ops"), pull_request: {} })
+    ).toMatch(/pull request/)
+  })
+
+  it("reads a long document in parts, and refuses what is not a file", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 })
+    const app = {
+      ...env,
+      OPS_GITHUB_APP_PRIVATE_KEY: privateKey.export({
+        type: "pkcs8",
+        format: "pem",
+      }) as string,
+    }
+    const doc = "x".repeat(50_000) + "END"
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(
+          String(input instanceof Request ? input.url : input)
+        )
+        if (url.pathname.endsWith("/installation"))
+          return Response.json({ id: 9 })
+        if (url.pathname.endsWith("/access_tokens"))
+          return Response.json({
+            token: "t",
+            expires_at: new Date(Date.now() + 3600_000).toISOString(),
+          })
+        if (url.pathname.endsWith("/contents/docs/runbooks/renewals.md"))
+          return Response.json({
+            type: "file",
+            encoding: "base64",
+            content: btoa(doc),
+            sha: "s",
+          })
+        if (url.pathname.endsWith("/contents/docs/dir.md"))
+          return Response.json([{ name: "x" }])
+        return new Response("not found", { status: 404 })
+      })
+    )
+    try {
+      const read = async (args: Record<string, unknown>) =>
+        JSON.parse(
+          (
+            (await callCofferdamTool(
+              app,
+              "ops",
+              OPS_GITHUB_CONNECTION,
+              "read_doc",
+              args
+            )) as { content: { text: string }[] }
+          ).content[0].text
+        )
+      const first = await read({ path: "docs/runbooks/renewals.md" })
+      expect(first).toMatchObject({
+        length: 50_003,
+        truncated: true,
+        nextOffset: 40_000,
+      })
+      const second = await read({
+        path: "docs/runbooks/renewals.md",
+        offset: first.nextOffset,
+      })
+      expect(second.text.endsWith("END")).toBe(true)
+      expect("truncated" in second).toBe(false)
+      await expect(read({ path: "docs/dir.md" })).rejects.toThrow(
+        /not a readable file/
+      )
+    } finally {
+      vi.unstubAllGlobals()
+      resetGitHubAppCache()
+    }
+  })
+
+  it("reports the bots' spend against the gateway budgets, by name", () => {
+    expect(spendReport(null, {})).toMatchObject({ available: false })
+    const report = spendReport(
+      {
+        syncedAt: Date.UTC(2026, 10, 4),
+        month: "2026-11",
+        total: { today: 1.234, month: 25 },
+        bots: [
+          {
+            botId: "b1",
+            today: { cost: 1.234, tokensIn: 0, tokensOut: 0, requests: 3 },
+            month: { cost: 25, tokensIn: 0, tokensOut: 0, requests: 90 },
+            background: 4.5,
+          },
+        ],
+        days: [{ day: "2026-11-04", cost: 1.234 }],
+      } as never,
+      { b1: "Security" }
+    )
+    expect(report).toMatchObject({
+      available: true,
+      total: { monthUsd: 25, monthBudgetUsd: 250, monthShareOfBudget: 0.1 },
+      bots: [{ bot: "Security", todayUsd: 1.23, dayBudgetUsd: 8 }],
     })
   })
 })

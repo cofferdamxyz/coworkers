@@ -48,8 +48,8 @@ const REQUIRED = [
 ]
 /**
  * Off while empty: upstream's optional features, and the Security bot's
- * connections until the founder creates its App and token (DEPLOYMENT.md,
- * joint 5). An empty value is sent only for a secret the Worker lacks, so a
+ * connections until the founder creates its App and token, and the Ops bot's
+ * App (DEPLOYMENT.md, joint 5). An empty value is sent only for a secret the Worker lacks, so a
  * deploy never overwrites one that is set.
  */
 const OPTIONAL = [
@@ -59,6 +59,7 @@ const OPTIONAL = [
   "SECURITY_GITHUB_APP_PRIVATE_KEY",
   "SECURITY_LOCKKEEPER_ACCESS_CLIENT_ID",
   "SECURITY_LOCKKEEPER_ACCESS_CLIENT_SECRET",
+  "OPS_GITHUB_APP_PRIVATE_KEY",
 ]
 
 const dryRun = process.argv.includes("--dry-run")

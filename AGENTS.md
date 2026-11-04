@@ -25,16 +25,20 @@ and the rest of this file (below the line) is upstream's own guide.
 
 - `src/cofferdam/`: the preset bots, each with its name, role, rules floor,
   daily routine and the policy section appended last to its prompt
-  (`engineering.ts`, `security.ts`; `presets.ts` maps a preset to them and
-  holds the shared floor check), and each bot's two deployment connections
-  (`tools.ts`), its own GitHub App and its own Lockkeeper Access service token
-  (`brief`, `in_flight`, `check`). Engineering: issues in the workspace
+  (`engineering.ts`, `security.ts`, `ops.ts`; `presets.ts` maps a preset to
+  them and holds the shared floor check), and each bot's deployment connections
+  (`tools.ts`): its own GitHub App, and its own Lockkeeper Access service token
+  (`brief`, `in_flight`, `check`) for Engineering and Security. Engineering: issues in the workspace
   repository only, with the `dispatch` guard and the `close_issue` gate (only
   an issue in `waiting` whose pull request Lockkeeper shows merged). Security:
   Dependabot, code scanning and secret scanning alerts, Code Quality findings
   and setup, pull requests (reads only, paged to exact totals) and Copilot
   Autofix (`security-tools.ts`, every answer cut to listed fields, never a secret
-  value), issue reads, and filing and comments in the `security` lane only. The
+  value), issue reads, and filing and comments in the `security` lane only.
+  Ops: workspace Markdown (`read_doc`), issue reads, comments on `ops` issues
+  only, and the bots' own spend (`bots_spend`, answered by the hub from its
+  gateway sync); no Lockkeeper and no billing credential (Cofferdam OS stays
+  the meter). The
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
   per-permission tokens for any App. Tests in `cofferdam.test.ts`.
 - `src/cofferdam/brand/`: the Cofferdam brand over upstream's theme tokens
@@ -47,7 +51,8 @@ and the rest of this file (below the line) is upstream's own guide.
   `node scripts/sync.mjs --only=coworkers --write` (`DEPLOYMENT.md`, Brand).
 - Small, marked hooks in upstream files (each starts with a `Cofferdam:` comment):
   `src/agents/user-hub.ts` (provisions each preset bot for the owner once; lists
-  and routes a preset's deployment connections to the bot holding it only),
+  and routes a preset's deployment connections to the bot holding it only, and
+  answers the Ops bot's `bots_spend` from its own spend sync),
   `src/agents/bot-agent.ts` (the rules floor in `policyFor`, read-only background
   turns, the policy appended to `instructions`, `ensureCofferdamPreset`, which
   also brings a preset routine's change in code to an existing bot once, keyed

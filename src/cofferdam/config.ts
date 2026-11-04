@@ -38,6 +38,17 @@ export const MAX_IN_FLIGHT_PER_REPO = 1
 /** The Security bot's lane label: every issue it files carries it. */
 export const SECURITY_LABEL = "security"
 
+/** The Ops bot's lane label: it comments only on issues that carry it. */
+export const OPS_LABEL = "ops"
+
+/**
+ * The bots' Claude budgets on the `cofferdam-coworkers` gateway, as the
+ * founder set them on 2026-11-03 (coworkers DEPLOYMENT.md, step 1): the Ops
+ * bot reads spend against these, it never sets them.
+ */
+export const BOT_BUDGET_PER_DAY_USD = 8
+export const GATEWAY_BUDGET_PER_MONTH_USD = 250
+
 /** People whose request is `explicit` in the admission table (§4). */
 export const LISTED_PEOPLE = ["CofferdamDev"] as const
 
@@ -49,6 +60,7 @@ export const LISTED_BOTS = [
   "cofferdam-lockkeeper[bot]",
   "cofferdam-engineering-bot[bot]",
   "cofferdam-security-bot[bot]",
+  "cofferdam-ops-bot[bot]",
 ] as const
 
 /** Lockkeeper's MCP tools a preset bot may call: reads only. */
@@ -75,5 +87,5 @@ export const REPOSITORIES = [
 ] as const
 
 /** The bots defined by this fork rather than by a person in the UI. */
-export const PRESETS = ["engineering", "security"] as const
+export const PRESETS = ["engineering", "security", "ops"] as const
 export type Preset = (typeof PRESETS)[number]
