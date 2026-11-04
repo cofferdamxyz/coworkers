@@ -321,6 +321,12 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04** as `e03f1df3` from `main` at `9e66f8f`: the Security
+bot's `request_dependabot_rebase` (the fixed `@dependabot rebase` on
+Dependabot's own open pull requests, ask-first); first test on
+`lockkeeper#5`. Two tries before it failed with `fetch failed` on the script
+upload during Cloudflare's partial outage.
+
 **Deployed 2026-11-04** as `1484ae4b` from `main` at `12d407b`: the Security
 bot names the commit behind a fix the founder landed by hand, from
 Lockkeeper's "Landed on" list.
