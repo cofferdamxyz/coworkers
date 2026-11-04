@@ -86,7 +86,9 @@ Load a sheet after the app's, or add the rules at the end of
 
 Overriding a color in one mode leaves the other mode as it was. If you
 change `--brand-surface`, change with it `THEME_COLORS` in
-`src/lib/theme.ts`, the manifest's `theme_color` / `background_color` (light),
+`src/lib/theme.ts`, the manifest's colours (`theme_color` light, `color_scheme_dark.theme_color`
+and `background_color` dark: Chrome on Android uses `background_color` alone
+for the installed app's splash),
 the offline page's colors in `public/sw.js`, and the background in
 `scripts/make-dark-splashes.sh` (then run it), so the browser chrome, the
 offline page and the installed app's launch stills match. The tests in

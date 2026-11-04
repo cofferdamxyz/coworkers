@@ -17,6 +17,8 @@ const manifest = JSON.parse(
   display: string
   theme_color: string
   background_color: string
+  display_override?: string[]
+  color_scheme_dark?: { theme_color?: string; background_color?: string }
   icons: { src: string; sizes: string; type: string; purpose: string }[]
 }
 
@@ -39,11 +41,17 @@ describe("install files", () => {
     expect(manifest.short_name.length).toBeLessThanOrEqual(12)
   })
 
-  // A manifest has one color pair; the light one, which the dark mode's
-  // theme-color meta then replaces once the page runs.
-  it("uses the light surface for the browser chrome and splash", () => {
+  // Cofferdam: Chrome on Android paints the installed app's splash from
+  // background_color alone (it ignores color_scheme_dark so far, checked on
+  // a Pixel 10 with Chrome Beta), so the splash is the dark surface in both
+  // modes, and the app opens fullscreen so the system bars, which stay
+  // white, are hidden. iOS has no display_override and keeps standalone.
+  it("starts dark and fullscreen on Android, standalone elsewhere", () => {
     expect(manifest.theme_color).toBe(THEME_COLORS.light)
-    expect(manifest.background_color).toBe(THEME_COLORS.light)
+    expect(manifest.background_color).toBe(THEME_COLORS.dark)
+    expect(manifest.color_scheme_dark?.theme_color).toBe(THEME_COLORS.dark)
+    expect(manifest.display_override).toEqual(["fullscreen"])
+    expect(manifest.display).toBe("standalone")
   })
 
   it("lists icons for any shape and a maskable one, at their real size", () => {
