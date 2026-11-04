@@ -774,7 +774,8 @@ Created by code (`src/cofferdam/ops.ts`) in the owner's hub on the first
 sign-in after the deploy that carries it, never by hand:
 
 - **Reads:** the Billing Monitor's reviews as messages in its chat (Cofferdam
-  OS, joint 9; the one meter for Cloudflare spend, decision 0045); the bots'
+  OS, joint 9, labelled "Message from Cloudflare MCP Portal"; the one meter for Cloudflare
+  spend, decision 0045); the bots'
   own Claude spend (`bots_spend`, the hub's gateway sync, against $250 a month
   and $8 a day per bot); workspace Markdown (`read_doc`); issues of
   `cofferdamxyz/cofferdam`. No Lockkeeper, no billing credential.
