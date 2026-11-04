@@ -15,7 +15,9 @@ import {
   featureOff,
   nextPath,
   callSecurityAlertTool,
+  DEPENDABOT_REBASE,
   pullRequest,
+  rebaseRefusal,
   severities,
   summarize,
   quotesCredential,
@@ -529,6 +531,7 @@ describe("Security bot", () => {
       "list_pull_requests",
       "list_secret_scanning_alerts",
       "request_autofix",
+      "request_dependabot_rebase",
       "search_issues",
     ])
     const ro = (name: string) =>
@@ -1008,5 +1011,25 @@ describe("Security bot", () => {
         })
       ).rejects.toThrow(/403/)
     })
+  })
+
+  it("asks Dependabot to rebase only its own open pull requests, asking first", () => {
+    expect(
+      cofferdamToolReadOnly(
+        SECURITY_GITHUB_CONNECTION,
+        "request_dependabot_rebase"
+      )
+    ).toBe(false)
+    expect(DEPENDABOT_REBASE).toBe("@dependabot rebase")
+    expect(
+      rebaseRefusal({ user: { login: "dependabot[bot]" }, state: "open" })
+    ).toBeNull()
+    expect(
+      rebaseRefusal({ user: { login: "CofferdamDev" }, state: "open" })
+    ).toMatch(/did not open/)
+    expect(
+      rebaseRefusal({ user: { login: "dependabot[bot]" }, state: "closed" })
+    ).toMatch(/not open/)
+    expect(securityPolicy()).toMatch(/only write on a product repository/)
   })
 })

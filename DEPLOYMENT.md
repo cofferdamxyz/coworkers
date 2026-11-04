@@ -535,7 +535,10 @@ sign-in after the deploy that carries it, never by hand:
 - **Writes, each on an approval card, never in a background turn:** file the
   triage issue in `cofferdam` with the `security` label and no other lane
   label; comment (the weekly summary, a sentence on a triage issue); request a
-  Copilot Autofix.
+  Copilot Autofix; ask Dependabot to rebase one of its own open pull requests
+  (the fixed comment `@dependabot rebase`, added 2026-11-04 so a pull request
+  with no CI result runs CI on the latest main), the bot's only write on a
+  product repository.
 - **Never:** labels, `dispatch`, closing, dismissing an alert, accepting or
   committing a fix (the founder does it on the alert's page), changing a
   repository's Code Quality setup, a secret value, a

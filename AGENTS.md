@@ -34,7 +34,9 @@ and the rest of this file (below the line) is upstream's own guide.
   Dependabot, code scanning and secret scanning alerts, Code Quality findings
   and setup, pull requests (reads only, paged to exact totals) and Copilot
   Autofix (`security-tools.ts`, every answer cut to listed fields, never a secret
-  value), issue reads, and filing and comments in the `security` lane only. The
+  value), issue reads, and filing and comments in the `security` lane only,
+  plus one fixed write on product repositories: `@dependabot rebase` on
+  Dependabot's own open pull requests. The
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
   per-permission tokens for any App. Tests in `cofferdam.test.ts`.
 - `src/cofferdam/brand/`: the Cofferdam brand over upstream's theme tokens
