@@ -40,6 +40,8 @@ export const SECURITY_LABEL = "security"
 
 /** The Ops bot's lane label: it comments only on issues that carry it. */
 export const OPS_LABEL = "ops"
+/** The standing ops issue the Ops bot writes its daily note on ("Ops daily review - DO NOT CLOSE"). */
+export const OPS_ISSUE = 14
 
 /**
  * The bots' Claude budgets on the `cofferdam-coworkers` gateway, as the

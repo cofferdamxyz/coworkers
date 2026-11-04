@@ -1061,6 +1061,8 @@ describe("Ops bot", () => {
     expect(policy).toMatch(/no Cloudflare billing credential/)
     expect(policy).toMatch(/never estimate Cloudflare spend yourself/)
     expect(policy).toMatch(/carries the `ops` label/)
+    expect(policy).toMatch(/cofferdamxyz\/cofferdam#14 /)
+    expect(policy).toMatch(/Message from Cloudflare MCP Portal/)
     expect(policy).toMatch(/changes no permission/)
   })
 
