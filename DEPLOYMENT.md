@@ -321,6 +321,12 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-04** as `3e3e9ffd` from `main` at `5b609f7`: the daily
+security triage lists the Dependabot pull requests that need `@dependabot
+rebase`, and a preset routine changed in code now reaches the existing bot on
+the next hub start (the Security triage had kept its first prompt; it takes
+the current one when the founder next opens the site).
+
 **2026-11-04, the rebase tool removed:** with Pull requests write the bot's
 comment posted on `lockkeeper#5` at 13:51:03 UTC as
 `cofferdam-security-bot[bot]`, and Dependabot answered four seconds later
