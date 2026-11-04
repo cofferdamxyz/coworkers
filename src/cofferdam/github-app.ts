@@ -1,13 +1,16 @@
 /**
- * The Engineering bot's GitHub identity: a GitHub App installed on the
- * workspace repository only (agentic-loop-completion.md §4). The Worker holds
- * the App's private key as a secret and mints a one-hour installation token
- * per use, narrowed in the request itself to the workspace repository and the
+ * A preset bot's GitHub identity: one GitHub App per bot
+ * (agentic-loop-completion.md §4). Engineering's is installed on the
+ * workspace repository only; Security's on the workspace repository (its
+ * triage issues) and the repositories whose alerts it reads. The Worker holds
+ * each App's private key as a secret and mints a one-hour installation token
+ * per use, narrowed in the request itself to one repository and the
  * permissions the call needs, so even an App granted more cannot be used for
  * more from here.
  */
-import { WORKSPACE_REPO } from "./config"
+import { REPOSITORIES, WORKSPACE_REPO } from "./config"
 
+/** One App's credentials, in the Engineering bot's binding names. */
 export interface GitHubAppEnv {
   GITHUB_APP_ID: string
   GITHUB_APP_PRIVATE_KEY: string
@@ -17,13 +20,20 @@ const API = "https://api.github.com"
 const USER_AGENT = "cofferdam-coworkers"
 
 export type TokenPermissions = Partial<
-  Record<"issues" | "contents", "read" | "write">
+  Record<
+    | "issues"
+    | "contents"
+    | "security_events"
+    | "vulnerability_alerts"
+    | "secret_scanning_alerts",
+    "read" | "write"
+  >
 >
 
 export class GitHubNotConfigured extends Error {
   constructor() {
     super(
-      "GitHub is not configured on this deployment (GITHUB_APP_ID or GITHUB_APP_PRIVATE_KEY is missing). Tell the user; do not retry."
+      "This bot's GitHub App is not configured on this deployment (its App id or private key is missing). Tell the user; do not retry."
     )
   }
 }
@@ -107,7 +117,8 @@ export async function appJwt(env: GitHubAppEnv, now = Date.now()) {
 // ── Tokens ────────────────────────────────────────────────────────────
 
 const tokens = new Map<string, { token: string; expires: number }>()
-let installationId: number | null = null
+/** Installation per App id: each App is installed once, on the organisation. */
+const installations = new Map<string, number>()
 
 async function gh(path: string, init: RequestInit & { token: string }) {
   const { token, headers, ...rest } = init
@@ -136,33 +147,50 @@ async function failure(res: Response, what: string) {
   return new Error(`GitHub ${what} failed (${res.status}): ${message}`)
 }
 
-/** An installation token for the workspace repository with these permissions. */
+function checkedRepo(repo: string) {
+  if (!(REPOSITORIES as readonly string[]).includes(repo)) {
+    throw new Error(`Unknown repository ${repo}.`)
+  }
+  return repo
+}
+
+/**
+ * An installation token for one repository of the organisation (the
+ * workspace repository unless named) with these permissions.
+ */
 export async function installationToken(
   env: Partial<GitHubAppEnv>,
-  permissions: TokenPermissions
+  permissions: TokenPermissions,
+  repo: string = WORKSPACE_REPO.repo
 ) {
   if (!githubConfigured(env)) throw new GitHubNotConfigured()
   const app = env as GitHubAppEnv
-  const cacheKey = JSON.stringify(permissions)
+  const appId = app.GITHUB_APP_ID.trim()
+  checkedRepo(repo)
+  const cacheKey = JSON.stringify([appId, repo, permissions])
   const cached = tokens.get(cacheKey)
   if (cached && cached.expires - Date.now() > 5 * 60_000) return cached.token
   const jwt = await appJwt(app)
-  if (installationId === null) {
+  let installationId = installations.get(appId)
+  if (installationId === undefined) {
     const res = await gh(
-      `/repos/${WORKSPACE_REPO.owner}/${WORKSPACE_REPO.repo}/installation`,
-      { token: jwt }
+      `/repos/${WORKSPACE_REPO.owner}/${repo}/installation`,
+      {
+        token: jwt,
+      }
     )
     if (!res.ok) throw await failure(res, "finding the App's installation")
     installationId = ((await res.json()) as { id: number }).id
+    installations.set(appId, installationId)
   }
   const res = await gh(`/app/installations/${installationId}/access_tokens`, {
     method: "POST",
     token: jwt,
-    body: JSON.stringify({ repositories: [WORKSPACE_REPO.repo], permissions }),
+    body: JSON.stringify({ repositories: [repo], permissions }),
   })
   if (!res.ok) {
     // A reinstalled App has a new installation: look it up again next time.
-    if (res.status === 404) installationId = null
+    if (res.status === 404) installations.delete(appId)
     throw await failure(res, "minting an installation token")
   }
   const body = (await res.json()) as { token: string; expires_at: string }
@@ -173,29 +201,45 @@ export async function installationToken(
   return body.token
 }
 
-/** A REST call on the workspace repository, with a narrowed token. */
+/**
+ * A REST call on one repository of the organisation (the workspace
+ * repository unless named), with a narrowed token; the raw response, for
+ * callers that read a status such as 404 themselves.
+ */
+export async function repoFetch(
+  env: Partial<GitHubAppEnv>,
+  permissions: TokenPermissions,
+  path: string,
+  init: RequestInit = {},
+  repo: string = WORKSPACE_REPO.repo
+): Promise<Response> {
+  const token = await installationToken(env, permissions, repo)
+  const prefix = `/repos/${WORKSPACE_REPO.owner}/${repo}`
+  return gh(path.startsWith("/search/") ? path : `${prefix}${path}`, {
+    ...init,
+    token,
+  })
+}
+
+/** A REST call on one repository, its JSON body, or an error. */
 export async function repoApi<T>(
   env: Partial<GitHubAppEnv>,
   permissions: TokenPermissions,
   path: string,
   init: RequestInit = {},
-  what = "request"
+  what = "request",
+  repo: string = WORKSPACE_REPO.repo
 ): Promise<T> {
-  const token = await installationToken(env, permissions)
-  const prefix = `/repos/${WORKSPACE_REPO.owner}/${WORKSPACE_REPO.repo}`
-  const res = await gh(
-    path.startsWith("/search/") ? path : `${prefix}${path}`,
-    {
-      ...init,
-      token,
-    }
-  )
+  const res = await repoFetch(env, permissions, path, init, repo)
   if (!res.ok) throw await failure(res, what)
   return (await res.json()) as T
 }
 
+/** The error for a failed response, with GitHub's message. */
+export { failure as githubFailure }
+
 /** Test hook: forget cached tokens and the installation id. */
 export function resetGitHubAppCache() {
   tokens.clear()
-  installationId = null
+  installations.clear()
 }

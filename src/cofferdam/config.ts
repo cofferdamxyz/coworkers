@@ -35,6 +35,9 @@ export const ROUTINE_LABELS = ["dispatched", "blocked", "waiting"] as const
 export const MAX_IN_FLIGHT = 2
 export const MAX_IN_FLIGHT_PER_REPO = 1
 
+/** The Security bot's lane label: every issue it files carries it. */
+export const SECURITY_LABEL = "security"
+
 /** People whose request is `explicit` in the admission table (§4). */
 export const LISTED_PEOPLE = ["CofferdamDev"] as const
 
@@ -44,9 +47,11 @@ export const LISTED_BOTS = [
   "github-actions[bot]",
   "claude[bot]",
   "cofferdam-lockkeeper[bot]",
+  "cofferdam-engineering-bot[bot]",
+  "cofferdam-security-bot[bot]",
 ] as const
 
-/** Lockkeeper's MCP tools the Engineering bot may call: reads only. */
+/** Lockkeeper's MCP tools a preset bot may call: reads only. */
 export const LOCKKEEPER_TOOLS = ["brief", "in_flight", "check"] as const
 
 /** The repositories Lockkeeper watches, for the bot's `repo` arguments. */
@@ -64,5 +69,6 @@ export const REPOSITORIES = [
   "coworkers",
 ] as const
 
-/** A bot defined by this fork rather than by a person in the UI. */
-export type Preset = "engineering"
+/** The bots defined by this fork rather than by a person in the UI. */
+export const PRESETS = ["engineering", "security"] as const
+export type Preset = (typeof PRESETS)[number]

@@ -64,36 +64,6 @@ export const ENGINEERING_TOOL_RULES: Record<string, RulePolicy> = {
   delete_app: "ask",
 }
 
-const ORDER: Record<RulePolicy, number> = { allow: 0, ask: 1, block: 2 }
-
-export function stricter(a: RulePolicy, b: RulePolicy): RulePolicy {
-  return ORDER[a] >= ORDER[b] ? a : b
-}
-
-/**
- * The policy for one call by a preset bot. `own` is the bot's rule for the
- * call's class; `deploymentTool` tells this fork's GitHub and Lockkeeper tools
- * apart, whose read flag is fixed in code: their reads run without a card,
- * their writes always ask. Any other connected app's tools ask at least.
- */
-export function presetPolicy(input: {
-  tool?: string
-  cls: ActionClass | undefined
-  own: RulePolicy
-  deploymentTool?: { readOnly: boolean }
-}): RulePolicy {
-  if (input.deploymentTool) {
-    if (input.own === "block") return "block"
-    return input.deploymentTool.readOnly ? "allow" : "ask"
-  }
-  const own =
-    input.tool && ENGINEERING_TOOL_RULES[input.tool]
-      ? stricter(input.own, ENGINEERING_TOOL_RULES[input.tool])
-      : input.own
-  if (!input.cls) return own
-  return stricter(own, ENGINEERING_RULES[input.cls])
-}
-
 /**
  * Upstream's free-form check-ins are off: the weekday routine below is this
  * bot's daily check-in, so it speaks once a day on a fixed shape.

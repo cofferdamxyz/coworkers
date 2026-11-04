@@ -1,13 +1,16 @@
 /**
- * The Engineering bot's two connections, held by the deployment rather than
- * added in the UI: GitHub (its own App, the workspace repository only) and
- * Lockkeeper (its Access service token). The UserHub lists them only to the
- * bot that holds the `engineering` preset and routes their calls here, so no
- * other bot sees the tools or the credentials (§4, §9).
+ * The preset bots' connections, held by the deployment rather than added in
+ * the UI: each bot's GitHub (its own App) and Lockkeeper (its own Access
+ * service token). Engineering: issues in the workspace repository, with the
+ * dispatch guard and the close gate. Security: the alert tools of
+ * ./security-tools and issue reads, filing and comments in the workspace
+ * repository, in its lane only. The UserHub lists a bot's connections only to
+ * that bot and routes their calls here with its preset, so no other bot sees
+ * the tools or the credentials (§4, §9).
  *
  * Every tool is marked read-only or not by this file, never guessed: reads run
  * in background turns, writes always ask (see `presetPolicy` in
- * ./engineering.ts) and are blocked when nobody is there to approve.
+ * ./presets.ts) and are blocked when nobody is there to approve.
  */
 import type { AppCatalog, AppTool } from "@/lib/types"
 import {
@@ -17,22 +20,97 @@ import {
   MAX_IN_FLIGHT_PER_REPO,
   REPOSITORIES,
   ROUTINE_LABELS,
+  SECURITY_LABEL,
   WORKSPACE_REPO,
 } from "./config"
+import type { Preset } from "./config"
 import { githubConfigured, repoApi } from "./github-app"
 import type { GitHubAppEnv } from "./github-app"
 import { callLockkeeper, lockkeeperConfigured } from "./lockkeeper"
 import type { LockkeeperEnv } from "./lockkeeper"
+import {
+  callSecurityAlertTool,
+  isSecurityAlertTool,
+  SECURITY_ALERT_TOOLS,
+} from "./security-tools"
 
-export type CofferdamEnv = Partial<GitHubAppEnv & LockkeeperEnv>
+/** The Security bot's App and Lockkeeper token, under their own names. */
+export interface SecurityEnv {
+  SECURITY_GITHUB_APP_ID: string
+  SECURITY_GITHUB_APP_PRIVATE_KEY: string
+  SECURITY_LOCKKEEPER_ACCESS_CLIENT_ID: string
+  SECURITY_LOCKKEEPER_ACCESS_CLIENT_SECRET: string
+}
+
+export type CofferdamEnv = Partial<GitHubAppEnv & LockkeeperEnv & SecurityEnv>
 
 export const GITHUB_CONNECTION = "cofferdam-github"
 export const LOCKKEEPER_CONNECTION = "cofferdam-lockkeeper"
+export const SECURITY_GITHUB_CONNECTION = "cofferdam-security-github"
+export const SECURITY_LOCKKEEPER_CONNECTION = "cofferdam-security-lockkeeper"
+
+/** Each preset's connections: GitHub first, then Lockkeeper. */
+export const PRESET_CONNECTIONS: Record<
+  Preset,
+  { github: string; lockkeeper: string; githubName: string }
+> = {
+  engineering: {
+    github: GITHUB_CONNECTION,
+    lockkeeper: LOCKKEEPER_CONNECTION,
+    githubName: "GitHub (Engineering App)",
+  },
+  security: {
+    github: SECURITY_GITHUB_CONNECTION,
+    lockkeeper: SECURITY_LOCKKEEPER_CONNECTION,
+    githubName: "GitHub (Security App)",
+  },
+}
 
 export function isCofferdamConnection(connectionId: string) {
-  return (
-    connectionId === GITHUB_CONNECTION || connectionId === LOCKKEEPER_CONNECTION
+  return Object.values(PRESET_CONNECTIONS).some(
+    (c) => c.github === connectionId || c.lockkeeper === connectionId
   )
+}
+
+/** Whether this connection belongs to this preset's bot. */
+export function presetHolds(preset: Preset, connectionId: string) {
+  const c = PRESET_CONNECTIONS[preset]
+  return c.github === connectionId || c.lockkeeper === connectionId
+}
+
+/** A preset's GitHub App credentials, in the shape github-app reads. */
+export function presetApp(
+  env: CofferdamEnv,
+  preset: Preset
+): Partial<GitHubAppEnv> {
+  return preset === "security"
+    ? {
+        GITHUB_APP_ID: env.SECURITY_GITHUB_APP_ID,
+        GITHUB_APP_PRIVATE_KEY: env.SECURITY_GITHUB_APP_PRIVATE_KEY,
+      }
+    : {
+        GITHUB_APP_ID: env.GITHUB_APP_ID,
+        GITHUB_APP_PRIVATE_KEY: env.GITHUB_APP_PRIVATE_KEY,
+      }
+}
+
+/** A preset's Lockkeeper token, in the shape lockkeeper reads. */
+export function presetLockkeeper(
+  env: CofferdamEnv,
+  preset: Preset
+): Partial<LockkeeperEnv> {
+  return preset === "security"
+    ? {
+        LOCKKEEPER_URL: env.LOCKKEEPER_URL,
+        LOCKKEEPER_ACCESS_CLIENT_ID: env.SECURITY_LOCKKEEPER_ACCESS_CLIENT_ID,
+        LOCKKEEPER_ACCESS_CLIENT_SECRET:
+          env.SECURITY_LOCKKEEPER_ACCESS_CLIENT_SECRET,
+      }
+    : {
+        LOCKKEEPER_URL: env.LOCKKEEPER_URL,
+        LOCKKEEPER_ACCESS_CLIENT_ID: env.LOCKKEEPER_ACCESS_CLIENT_ID,
+        LOCKKEEPER_ACCESS_CLIENT_SECRET: env.LOCKKEEPER_ACCESS_CLIENT_SECRET,
+      }
 }
 
 const REPO = `${WORKSPACE_REPO.owner}/${WORKSPACE_REPO.repo}`
@@ -149,6 +227,45 @@ const GITHUB_TOOLS: ToolDef[] = [
   },
 ]
 
+/** The issue tools the Security bot holds, in its lane only. */
+const SECURITY_ISSUE_TOOLS: ToolDef[] = GITHUB_TOOLS.filter((t) =>
+  ["list_issues", "get_issue", "search_issues"].includes(t.name)
+)
+const SECURITY_COMMENT: ToolDef = {
+  name: "comment",
+  description: `Comment on an issue in ${REPO} that carries the ${SECURITY_LABEL} label: the weekly summary on the standing security issue, or one sentence on a triage issue. Never a secret value. Always asks the user.`,
+  inputSchema: {
+    type: "object",
+    properties: { number: issueNumber, body: { type: "string" } },
+    required: ["number", "body"],
+  },
+  readOnly: false,
+}
+const SECURITY_CREATE_ISSUE: ToolDef = {
+  name: "create_issue",
+  description: `File the triage issue in ${REPO} (private) with the ${SECURITY_LABEL} label and no other lane label. Never ${DISPATCH_LABEL} or a routine label, never a secret value. Always asks the user.`,
+  inputSchema: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      body: { type: "string" },
+      labels: { type: "array", items: { type: "string" } },
+    },
+    required: ["title", "body", "labels"],
+  },
+  readOnly: false,
+}
+
+const PRESET_GITHUB_TOOLS: Record<Preset, ToolDef[]> = {
+  engineering: GITHUB_TOOLS,
+  security: [
+    ...SECURITY_ALERT_TOOLS,
+    ...SECURITY_ISSUE_TOOLS,
+    SECURITY_CREATE_ISSUE,
+    SECURITY_COMMENT,
+  ],
+}
+
 const LOCKKEEPER_TOOL_DEFS: ToolDef[] = [
   {
     name: "brief",
@@ -189,35 +306,44 @@ const LOCKKEEPER_TOOL_DEFS: ToolDef[] = [
   },
 ]
 
-/** The catalog entries for the preset bot: appended to the hub's own. */
-export function cofferdamCatalog(env: CofferdamEnv): AppCatalog {
-  const github = githubConfigured(env)
-  const lockkeeper = lockkeeperConfigured(env)
+/** The catalog entries for a preset bot: appended to the hub's own. */
+export function cofferdamCatalog(
+  env: CofferdamEnv,
+  preset: Preset = "engineering"
+): AppCatalog {
+  const conn = PRESET_CONNECTIONS[preset]
+  const githubTools = PRESET_GITHUB_TOOLS[preset]
+  const github = githubConfigured(presetApp(env, preset))
+  const lockkeeper = lockkeeperConfigured(presetLockkeeper(env, preset))
   const tools: AppTool[] = [
-    ...GITHUB_TOOLS.map((t) => ({
-      ...t,
-      connectionId: GITHUB_CONNECTION,
-      connectionName: "GitHub (Engineering App)",
-    })),
-    ...LOCKKEEPER_TOOL_DEFS.map((t) => ({
-      ...t,
-      connectionId: LOCKKEEPER_CONNECTION,
-      connectionName: "Lockkeeper",
-    })),
+    ...(github
+      ? githubTools.map((t) => ({
+          ...t,
+          connectionId: conn.github,
+          connectionName: conn.githubName,
+        }))
+      : []),
+    ...(lockkeeper
+      ? LOCKKEEPER_TOOL_DEFS.map((t) => ({
+          ...t,
+          connectionId: conn.lockkeeper,
+          connectionName: "Lockkeeper",
+        }))
+      : []),
   ]
   return {
     apps: [
       {
-        id: GITHUB_CONNECTION,
-        name: "GitHub (Engineering App)",
+        id: conn.github,
+        name: conn.githubName,
         status: github ? "ready" : "failed",
-        tools: GITHUB_TOOLS.length,
+        tools: githubTools.length,
         ...(github
           ? {}
           : { error: "Not configured: the App's secrets are missing." }),
       },
       {
-        id: LOCKKEEPER_CONNECTION,
+        id: conn.lockkeeper,
         name: "Lockkeeper",
         status: lockkeeper ? "ready" : "failed",
         tools: LOCKKEEPER_TOOL_DEFS.length,
@@ -226,19 +352,20 @@ export function cofferdamCatalog(env: CofferdamEnv): AppCatalog {
           : { error: "Not configured: the service token is missing." }),
       },
     ],
-    tools:
-      github || lockkeeper
-        ? tools.filter((t) =>
-            t.connectionId === GITHUB_CONNECTION ? github : lockkeeper
-          )
-        : [],
+    tools,
   }
 }
 
 /** Whether a deployment tool only reads. Unknown tools count as writes. */
 export function cofferdamToolReadOnly(connectionId: string, name: string) {
+  const preset = (Object.keys(PRESET_CONNECTIONS) as Preset[]).find((p) =>
+    presetHolds(p, connectionId)
+  )
+  if (!preset) return false
   const defs =
-    connectionId === GITHUB_CONNECTION ? GITHUB_TOOLS : LOCKKEEPER_TOOL_DEFS
+    PRESET_CONNECTIONS[preset].github === connectionId
+      ? PRESET_GITHUB_TOOLS[preset]
+      : LOCKKEEPER_TOOL_DEFS
   return defs.find((t) => t.name === name)?.readOnly === true
 }
 
@@ -429,7 +556,7 @@ export function closeRefusal(
   return null
 }
 
-async function openIssuesLabelled(env: CofferdamEnv, label: string) {
+async function openIssuesLabelled(env: Partial<GitHubAppEnv>, label: string) {
   return repoApi<Issue[]>(
     env,
     { issues: "read" },
@@ -439,11 +566,50 @@ async function openIssuesLabelled(env: CofferdamEnv, label: string) {
   )
 }
 
+/** Why a security create_issue may not carry these labels, or null. */
+export function securityLabelRefusal(labels: string[]): string | null {
+  if (!labels.includes(SECURITY_LABEL)) {
+    return `The triage issue needs the ${SECURITY_LABEL} label.`
+  }
+  const other = labels.filter(
+    (l) =>
+      l !== SECURITY_LABEL && (LANE_LABELS as readonly string[]).includes(l)
+  )
+  if (other.length) {
+    return `The Security bot files in its own lane only, not ${other.join(", ")}.`
+  }
+  return null
+}
+
+/**
+ * Why the Security bot may not comment on this issue, or null: its lane
+ * only, an open or closed issue with the security label, never a pull
+ * request (another lane's issue is not its to write on, and a comment there
+ * could pose as a dispatched session's report).
+ */
+export function securityCommentRefusal(
+  issue: Pick<Issue, "labels" | "pull_request">
+): string | null {
+  if (issue.pull_request) return "That is a pull request, not an issue."
+  if (!issue.labels.some((l) => l.name === SECURITY_LABEL)) {
+    return `The Security bot comments only on issues with the ${SECURITY_LABEL} label.`
+  }
+  return null
+}
+
 async function callGitHub(
-  env: CofferdamEnv,
+  all: CofferdamEnv,
+  preset: Preset,
   name: string,
   args: Record<string, unknown>
 ): Promise<unknown> {
+  if (!PRESET_GITHUB_TOOLS[preset].some((t) => t.name === name)) {
+    throw new Error(`No GitHub tool named ${name} for this bot.`)
+  }
+  const env = presetApp(all, preset)
+  if (preset === "security" && isSecurityAlertTool(name)) {
+    return callSecurityAlertTool(env, name, args)
+  }
   switch (name) {
     case "list_issues": {
       const params = new URLSearchParams({
@@ -553,6 +719,10 @@ async function callGitHub(
           `An issue needs a lane label: ${LANE_LABELS.join(", ")}.`
         )
       }
+      if (preset === "security") {
+        const refusal = securityLabelRefusal(labels)
+        if (refusal) throw new Error(refusal)
+      }
       const issue = await repoApi<Issue>(
         env,
         { issues: "write" },
@@ -570,6 +740,17 @@ async function callGitHub(
         throw new Error(
           `The comment is over ${COMMENT_MAX} characters; say it shorter.`
         )
+      }
+      if (preset === "security") {
+        const issue = await repoApi<Issue>(
+          env,
+          { issues: "read" },
+          `/issues/${n}`,
+          {},
+          "reading the issue"
+        )
+        const refusal = securityCommentRefusal(issue)
+        if (refusal) throw new Error(`Not commented: ${refusal}`)
       }
       const comment = await repoApi<Comment>(
         env,
@@ -645,7 +826,7 @@ async function callGitHub(
       let brief = ""
       let pr: { state: string; merged: boolean } | null = null
       if (target) {
-        brief = await callLockkeeper(env, "brief", {
+        brief = await callLockkeeper(presetLockkeeper(all, preset), "brief", {
           repo: target.repo,
           goal: issue.title,
         })
@@ -654,10 +835,18 @@ async function callGitHub(
         try {
           const res = await fetch(
             `https://api.github.com/repos/cofferdamxyz/${target.repo}/pulls/${target.number}`,
-            { headers: { accept: "application/vnd.github+json", "user-agent": "cofferdam-coworkers" } }
+            {
+              headers: {
+                accept: "application/vnd.github+json",
+                "user-agent": "cofferdam-coworkers",
+              },
+            }
           )
           if (res.ok) {
-            const data = (await res.json()) as { state: string; merged: boolean }
+            const data = (await res.json()) as {
+              state: string
+              merged: boolean
+            }
             pr = { state: data.state, merged: data.merged === true }
           }
         } catch {
@@ -687,14 +876,22 @@ async function callGitHub(
   }
 }
 
-/** Run a deployment tool. The hub has already checked the caller holds it. */
+/**
+ * Run a deployment tool for a preset bot. The hub passes the caller's preset;
+ * a connection that is not that preset's is refused here as well.
+ */
 export async function callCofferdamTool(
   env: CofferdamEnv,
+  preset: Preset,
   connectionId: string,
   name: string,
   args: Record<string, unknown>
 ): Promise<unknown> {
-  if (connectionId === LOCKKEEPER_CONNECTION) {
+  if (!presetHolds(preset, connectionId)) {
+    throw new Error("That connection is not available to this bot.")
+  }
+  const conn = PRESET_CONNECTIONS[preset]
+  if (connectionId === conn.lockkeeper) {
     const repo = str(args, "repo")
     if (repo !== undefined) {
       const bare = repo.replace(/^cofferdamxyz\//, "")
@@ -702,14 +899,11 @@ export async function callCofferdamTool(
         throw new Error(`Unknown repository ${repo}.`)
       }
     }
-    const text = await callLockkeeper(env, name, args)
+    const text = await callLockkeeper(presetLockkeeper(env, preset), name, args)
     return { content: [{ type: "text", text }] }
   }
-  if (connectionId === GITHUB_CONNECTION) {
-    const result = await callGitHub(env, name, args)
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    }
+  const result = await callGitHub(env, preset, name, args)
+  return {
+    content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
   }
-  throw new Error("That connection does not exist.")
 }

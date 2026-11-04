@@ -46,11 +46,19 @@ const REQUIRED = [
   "LOCKKEEPER_ACCESS_CLIENT_ID",
   "LOCKKEEPER_ACCESS_CLIENT_SECRET",
 ]
-/** Declared upstream, off while empty. */
+/**
+ * Off while empty: upstream's optional features, and the Security bot's
+ * connections until the founder creates its App and token (DEPLOYMENT.md,
+ * joint 5). An empty value is sent only for a secret the Worker lacks, so a
+ * deploy never overwrites one that is set.
+ */
 const OPTIONAL = [
   "BROWSER_RUN_API_TOKEN",
   "AI_GATEWAY_API_TOKEN",
   "EMAIL_ROUTING_API_TOKEN",
+  "SECURITY_GITHUB_APP_PRIVATE_KEY",
+  "SECURITY_LOCKKEEPER_ACCESS_CLIENT_ID",
+  "SECURITY_LOCKKEEPER_ACCESS_CLIENT_SECRET",
 ]
 
 const dryRun = process.argv.includes("--dry-run")

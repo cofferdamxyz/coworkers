@@ -149,17 +149,9 @@ import {
 } from "./skill-sources"
 import { createWebTools } from "./web-tools"
 import type { CrawlInput, QuickEngine } from "./web-tools"
-// Cofferdam: the Engineering preset (rules floor, policy, connections).
+// Cofferdam: the preset bots (rules floor, policy, connections).
 import type { Preset } from "@/cofferdam/config"
-import {
-  ENGINEERING_NAME,
-  ENGINEERING_PROACTIVE,
-  ENGINEERING_ROLE,
-  ENGINEERING_ROUTINE,
-  ENGINEERING_RULES,
-  engineeringPolicy,
-  presetPolicy,
-} from "@/cofferdam/engineering"
+import { isPreset, PRESET_DEFS, presetPolicy } from "@/cofferdam/presets"
 import { isCofferdamConnection } from "@/cofferdam/tools"
 
 // The worker-shell backend hands this class to its Dynamic Worker as a
@@ -964,28 +956,30 @@ export class BotAgent extends Think<Env, BotState> {
 
   /** Cofferdam: the preset this bot holds, set once by the UserHub. */
   private get cofferdamPreset(): Preset | null {
-    return this.ctx.storage.kv.get<Preset>("cofferdam_preset") ?? null
+    const preset = this.ctx.storage.kv.get<string>("cofferdam_preset")
+    return isPreset(preset) ? preset : null
   }
 
   /**
    * Durable Object RPC from UserHub.provisionCofferdamBots, right after
    * setup() and again on later hub starts (a no-op once applied): the
-   * Engineering bot's name, job, rules, check-ins and its daily routine. Its
-   * rules floor and policy apply from then on, whatever the settings say.
+   * preset bot's name, job, rules, check-ins and its daily routine. Its rules
+   * floor and policy apply from then on, whatever the settings say.
    */
   async ensureCofferdamPreset(preset: Preset) {
     if (this.cofferdamPreset === preset) return
+    const def = PRESET_DEFS[preset]
     this.setState({
       ...this.state,
-      name: ENGINEERING_NAME,
-      role: ENGINEERING_ROLE,
-      rules: { ...ENGINEERING_RULES },
+      name: def.name,
+      role: def.role,
+      rules: { ...def.rules },
     })
-    await this.report({ name: ENGINEERING_NAME, role: ENGINEERING_ROLE })
+    await this.report({ name: def.name, role: def.role })
     // The routine's cron reads the bot's timezone: set it first.
-    await this.updateProactive(ENGINEERING_PROACTIVE)
-    if (!this.state.routines.some((r) => r.name === ENGINEERING_ROUTINE.name)) {
-      await this.addRoutine(ENGINEERING_ROUTINE)
+    await this.updateProactive(def.proactive)
+    if (!this.state.routines.some((r) => r.name === def.routine.name)) {
+      await this.addRoutine(def.routine)
     }
     // Last, so a call cut off before here runs again in full next time.
     this.ctx.storage.kv.put("cofferdam_preset", preset)
@@ -1282,11 +1276,13 @@ export class BotAgent extends Think<Env, BotState> {
         collections: this.apps.collections(app.slug),
       })),
     })
+    // Cofferdam: the preset this bot holds, for the policy below.
+    const preset = this.cofferdamPreset
     return {
       model: this.turnModel(),
       // Cofferdam: the policy goes last, regenerated from code every turn.
-      instructions: this.cofferdamPreset
-        ? `${system}\n\n${context}\n\n${engineeringPolicy()}`
+      instructions: preset
+        ? `${system}\n\n${context}\n\n${PRESET_DEFS[preset].policy()}`
         : `${system}\n\n${context}`,
       messages: withSentTimes(
         ctx.messages,
@@ -1347,8 +1343,10 @@ export class BotAgent extends Think<Env, BotState> {
     // Bots from before a class existed get its default.
     const own = cls ? (this.state.rules[cls] ?? DEFAULT_RULES[cls]) : "allow"
     // Cofferdam: a preset bot is never looser than its floor in code.
-    if (this.cofferdamPreset) {
+    const preset = this.cofferdamPreset
+    if (preset) {
       return presetPolicy({
+        preset,
         tool: toolName,
         cls,
         own,

@@ -347,6 +347,69 @@ from Lockkeeper.
 - Actions are enabled on the fork (checked 2026-11-02); CI runs on every push to
   `main` and every pull request.
 
+## 10. Joint 5: the Security bot — founder, after the session's deploy
+
+Built 2026-11-03 (`src/cofferdam/security.ts`, `security-tools.ts`,
+`presets.ts`). The deploy that carries it creates the bot in your hub on the
+next sign-in, with both of its connections marked **failed** until the steps
+below are done; its rules and policy apply from the first turn. The order is
+the deploy first, then these, because each `wrangler secret put` publishes a
+version of whatever code is deployed.
+
+**10.1 The GitHub App.** github.com → `cofferdamxyz` → Settings → Developer
+settings → GitHub Apps → New GitHub App:
+
+- **Name:** exactly `Cofferdam Security Bot`, so its slug is
+  `cofferdam-security-bot` (the admission list in `src/cofferdam/config.ts`
+  names `cofferdam-security-bot[bot]`).
+- **Homepage URL:** `https://bots.cofferdam.xyz`. **Webhook:** untick Active.
+- **Repository permissions:** Code scanning alerts **Read and write** (write is
+  what `POST …/autofix` needs; it would also let an App dismiss an alert, which
+  this Worker never calls), Dependabot alerts **Read-only**, Secret scanning
+  alerts **Read-only**, Issues **Read and write** (the triage issue and the
+  weekly summary), Metadata Read-only. Nothing else: no contents, no pull
+  requests, no workflows, no organisation permissions.
+- **Where can this GitHub App be installed:** Only on this account. Create,
+  note the **App ID**, **Generate a private key**.
+- **Install App** → `cofferdamxyz` → Only select repositories → the eleven of
+  `REPOSITORIES` (`cofferdam` for the issues, the other ten for their alerts).
+  A GitHub App's permissions hold on every repository it is installed on, so
+  Issues write is the ceiling everywhere; the Worker mints every token for one
+  repository and one permission, and its issue tools reach `cofferdam` only, so
+  an issue on a public product repository is refused in code.
+- Logo: none yet (`cofferdam-branding/assets/github/` has the Engineering
+  bot's only); GitHub's default until the brand adds one.
+
+**10.2 The deploy file.** Add `"securityGithubAppId": "<App ID>"` to
+`coworkers.deploy.json` (or give the id to the session).
+
+**10.3 The key**, in your terminal from this folder:
+
+```bash
+direnv exec .. pnpm dlx wrangler@4.95.0 secret put SECURITY_GITHUB_APP_PRIVATE_KEY --name coworkers < ~/Downloads/cofferdam-security-bot.*.private-key.pem
+```
+
+```bash
+rm ~/Downloads/cofferdam-security-bot.*.private-key.pem
+```
+
+**10.4 The Lockkeeper token**, its own (`coworkers-security`, one year), piped
+into `SECURITY_LOCKKEEPER_ACCESS_CLIENT_ID` and `…_SECRET` without showing the
+secret:
+
+```bash
+direnv exec .. sh scripts/lockkeeper-service-token.sh coworkers-security coworkers SECURITY_
+```
+
+Give the printed token **id** to the session, which adds the reusable policy
+`Lockkeeper Access from the Security bot` (Service Auth) to the `lockkeeper`
+application, as for Engineering in step 5.
+
+**10.5 Deploy again** (the session), so `SECURITY_GITHUB_APP_ID` carries the
+id. Joint 5's Security part is done when the bot answers "what is open?" with
+alerts from at least one repository and its first triage issue, approved on
+its card, lands in `cofferdam` with the `security` label.
+
 ## The Engineering bot
 
 Created by code (`src/cofferdam/engineering.ts`) in the owner's hub on the first
@@ -368,6 +431,31 @@ sign-in, never by hand:
 - The GitHub and Lockkeeper connections are the deployment's, listed only to
   this bot. Do not add GitHub or Lockkeeper again under Connections: a
   connection added there is shared by every bot.
+
+## The Security bot
+
+Created by code (`src/cofferdam/security.ts`) in the owner's hub on the first
+sign-in after the deploy that carries it, never by hand:
+
+- **Reads:** Dependabot, code scanning and secret scanning alerts on the
+  repositories its App is installed on, cut to the fields triage needs (a
+  secret scanning alert's value is never returned); each CodeQL alert's Copilot
+  Autofix; issues of `cofferdamxyz/cofferdam`; Lockkeeper `brief`,
+  `in_flight`, `check` with its own token.
+- **Writes, each on an approval card, never in a background turn:** file the
+  triage issue in `cofferdam` with the `security` label and no other lane
+  label; comment (the weekly summary, a sentence on a triage issue); request a
+  Copilot Autofix.
+- **Never:** labels, `dispatch`, closing, dismissing an alert, accepting or
+  committing a fix (the founder does it on the alert's page), a secret value, a
+  shell, scripts, the browser, email, managing bots.
+- **Routine:** "Daily security triage", weekdays 08:00 São Paulo, read-only:
+  what to land, what it would file, which CodeQL alerts lack an Autofix; on
+  Mondays a draft of the weekly summary. Requesting an Autofix waits for you in
+  chat (the ruling of 2026-11-03 had the triage request it; a background turn
+  never writes here, so it asks instead).
+- Its connections (`cofferdam-security-github`, `cofferdam-security-lockkeeper`)
+  are listed only to it; Engineering's only to Engineering.
 
 ## Deployments
 

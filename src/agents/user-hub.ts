@@ -7,10 +7,11 @@ import type { ModelSettings, ModelTestResult } from "@/lib/models"
 import { botIdFromLink } from "@/lib/bot-links"
 import { BOT_AVATARS, NEW_BOT_NAME, botInstanceName } from "@/lib/types"
 import { emailDirectory } from "./email-directory"
-// Cofferdam: the Engineering preset and its deployment connections.
+// Cofferdam: the preset bots and their deployment connections.
 import { userIdForEmail } from "@/lib/auth"
+import { PRESETS } from "@/cofferdam/config"
 import type { Preset } from "@/cofferdam/config"
-import { ENGINEERING } from "@/cofferdam/engineering"
+import { isPreset } from "@/cofferdam/presets"
 import {
   callCofferdamTool,
   cofferdamCatalog,
@@ -243,60 +244,69 @@ export class UserHub extends Agent<Env, HubState> implements HubPort {
       },
     })
     await this.restoreLegacyConnections()
-    // Cofferdam: the owner's Engineering bot, once. Not awaited: the new bot
+    // Cofferdam: the owner's preset bots, each once. Not awaited: a new bot
     // reports to this hub, which must be free to answer.
     this.sql`CREATE TABLE IF NOT EXISTS cofferdam_presets (
       preset TEXT PRIMARY KEY,
       bot_id TEXT NOT NULL,
       created_at INTEGER NOT NULL
     )`
-    void this.provisionCofferdamBots().catch((err) => {
-      console.error("Provisioning the Engineering bot failed", err)
-    })
+    void this.provisionCofferdamBots()
   }
 
   // ── Cofferdam presets ───────────────────────────────────────────────
 
   /**
-   * Creates the Engineering bot for the deployment's owner (COFFERDAM_OWNER,
-   * an email) the first time their hub starts, and on every later start makes
-   * sure the bot still carries its preset (a start cut off halfway is
-   * finished). Deleting the bot is final: its row stays, so it is not
-   * created again.
+   * Creates each preset bot (Engineering, then Security) for the deployment's
+   * owner (COFFERDAM_OWNER, an email) the first time their hub starts with
+   * that preset in the code, and on every later start makes sure each bot
+   * still carries its preset (a start cut off halfway is finished). Deleting
+   * a bot is final: its row stays, so it is not created again.
    */
   private async provisionCofferdamBots() {
     const owner = this.env.COFFERDAM_OWNER?.trim()
     if (!owner || userIdForEmail(owner) !== this.userId) return
+    for (const preset of PRESETS) {
+      try {
+        await this.provisionPreset(preset)
+      } catch (err) {
+        console.error(`Provisioning the ${preset} bot failed`, err)
+      }
+    }
+  }
+
+  private async provisionPreset(preset: Preset) {
     const held = this.sql<{ bot_id: string }>`
-      SELECT bot_id FROM cofferdam_presets WHERE preset = ${ENGINEERING}`[0]
+      SELECT bot_id FROM cofferdam_presets WHERE preset = ${preset}`[0]
     if (held?.bot_id) {
       if (this.state.bots.some((b) => b.id === held.bot_id)) {
-        await (await this.bot(held.bot_id)).ensureCofferdamPreset(ENGINEERING)
+        await (await this.bot(held.bot_id)).ensureCofferdamPreset(preset)
       }
       return
     }
     // No row, or one left by a creation that never finished: start over.
     // The row is claimed before creating, so a second start cannot add another.
-    this.sql`DELETE FROM cofferdam_presets WHERE preset = ${ENGINEERING}`
+    this.sql`DELETE FROM cofferdam_presets WHERE preset = ${preset}`
     this.sql`INSERT INTO cofferdam_presets (preset, bot_id, created_at)
-      VALUES (${ENGINEERING}, ${""}, ${Date.now()})`
+      VALUES (${preset}, ${""}, ${Date.now()})`
     let botId: string
     try {
       botId = (await this.addBot()).id
     } catch (err) {
-      this.sql`DELETE FROM cofferdam_presets WHERE preset = ${ENGINEERING}`
+      this.sql`DELETE FROM cofferdam_presets WHERE preset = ${preset}`
       throw err
     }
     this.sql`UPDATE cofferdam_presets SET bot_id = ${botId}
-      WHERE preset = ${ENGINEERING}`
-    await (await this.bot(botId)).ensureCofferdamPreset(ENGINEERING)
+      WHERE preset = ${preset}`
+    await (await this.bot(botId)).ensureCofferdamPreset(preset)
   }
 
   /** The preset a bot holds, if any. RPC for the bot itself. */
   presetOf(botId: string): Preset | null {
-    const row = this.sql<{ preset: Preset }>`
+    if (!botId) return null
+    const row = this.sql<{ preset: string }>`
       SELECT preset FROM cofferdam_presets WHERE bot_id = ${botId}`[0]
-    return row?.preset ?? null
+    return isPreset(row?.preset) ? row.preset : null
   }
 
   // ── Spend ───────────────────────────────────────────────────────────
@@ -1392,8 +1402,8 @@ export class UserHub extends Agent<Env, HubState> implements HubPort {
 
   /**
    * Every connected tool, for a bot's next turn. Cofferdam: `botId` adds the
-   * deployment's GitHub and Lockkeeper connections for the bot that holds
-   * the Engineering preset, and for no one else (scripts never pass it).
+   * deployment's GitHub and Lockkeeper connections of the preset that bot
+   * holds, and for no one else (scripts never pass it).
    */
   async appCatalog(botId?: string): Promise<AppCatalog> {
     await this.mcp.waitForConnections({ timeout: 5000 })
@@ -1421,8 +1431,9 @@ export class UserHub extends Agent<Env, HubState> implements HubPort {
       tools: c.tools,
       ...(c.error ? { error: c.error } : {}),
     }))
-    if (botId && this.presetOf(botId) === ENGINEERING) {
-      const own = cofferdamCatalog(this.env)
+    const preset = botId ? this.presetOf(botId) : null
+    if (preset) {
+      const own = cofferdamCatalog(this.env, preset)
       return { apps: [...apps, ...own.apps], tools: [...tools, ...own.tools] }
     }
     return { apps, tools }
@@ -1437,10 +1448,17 @@ export class UserHub extends Agent<Env, HubState> implements HubPort {
   ): Promise<unknown> {
     // Cofferdam: the deployment's connections answer only their holder.
     if (isCofferdamConnection(connectionId)) {
-      if (!botId || this.presetOf(botId) !== ENGINEERING) {
+      const preset = botId ? this.presetOf(botId) : null
+      if (!preset) {
         throw new Error("That connection is not available to this bot.")
       }
-      const result = await callCofferdamTool(this.env, connectionId, name, args)
+      const result = await callCofferdamTool(
+        this.env,
+        preset,
+        connectionId,
+        name,
+        args
+      )
       return JSON.parse(JSON.stringify(result)) as unknown
     }
     if (!this.state.connections.some((c) => c.id === connectionId)) {

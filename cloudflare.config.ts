@@ -19,11 +19,12 @@ const deploy: Partial<{
   accessAud: string
   emailDomain: string
   emailZoneId: string
-  // Cofferdam: the owner whose hub gets the Engineering bot, and the
-  // Engineering GitHub App's id. Neither is secret; both stay in the
-  // ignored deploy file with the Access values.
+  // Cofferdam: the owner whose hub gets the preset bots, and the
+  // Engineering and Security GitHub Apps' ids. None is secret; all stay in
+  // the ignored deploy file with the Access values.
   cofferdamOwner: string
   githubAppId: string
+  securityGithubAppId: string
 }> =
   // The installer packs a release for everyone: never with your values.
   !process.env.COWORKERS_PACKING && DEPLOY_FILE
@@ -193,6 +194,13 @@ export default defineConfig({
       LOCKKEEPER_URL: bindings.text(COFFERDAM.lockkeeperUrl),
       LOCKKEEPER_ACCESS_CLIENT_ID: bindings.secret(),
       LOCKKEEPER_ACCESS_CLIENT_SECRET: bindings.secret(),
+      // Cofferdam: the Security bot's own GitHub App and Lockkeeper token,
+      // the same shape under their own names. Empty until the founder
+      // creates them: the bot runs with its connections marked failed.
+      SECURITY_GITHUB_APP_ID: bindings.text(deploy.securityGithubAppId ?? ""),
+      SECURITY_GITHUB_APP_PRIVATE_KEY: bindings.secret(),
+      SECURITY_LOCKKEEPER_ACCESS_CLIENT_ID: bindings.secret(),
+      SECURITY_LOCKKEEPER_ACCESS_CLIENT_SECRET: bindings.secret(),
     },
   },
 })
