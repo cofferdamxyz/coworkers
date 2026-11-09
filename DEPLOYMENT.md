@@ -321,6 +321,14 @@ same code as `abc5e93a` (the commit since is this file only), by the Security
 session, whose three tries before that failed with `fetch failed` on the
 script upload while Cloudflare reported a partial outage (Curitiba degraded).
 
+**Deployed 2026-11-09 19:47 UTC** as `0bc1ba99` from `main` at `346ce9c`: the
+Engineering bot's `resume_dispatch`, the resume path for a held dispatch
+(workspace `docs/runbooks/dispatch-routine.md`, Resume), and the guard that keeps
+**Report**, **Answer** and **Mandate** headings out of every bot's comments.
+The routine's stored prompt was updated first (`RemoteTrigger update`, 19:46
+UTC), so no resume meets the old step 4. Tests 249 passed, typecheck and build
+clean, the dry run passed. Checked after: `/` redirects to Access.
+
 **Deployed 2026-11-04 19:40 UTC** as `75038c78` from `main` at `181893c`: the
 Ops policy names the standing ops issue, `cofferdamxyz/cofferdam#14`. Joint 9
 verified end to end before it: the Billing Monitor's 19:36 UTC review reached
