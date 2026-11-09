@@ -23,6 +23,7 @@ import {
   GATEWAY_BUDGET_PER_MONTH_USD,
   MAX_IN_FLIGHT,
   MAX_IN_FLIGHT_PER_REPO,
+  MAX_RESUMES,
   OPS_LABEL,
   REPOSITORIES,
   ROUTINE_LABELS,
@@ -159,6 +160,9 @@ export function presetLockkeeper(
 
 const REPO = `${WORKSPACE_REPO.owner}/${WORKSPACE_REPO.repo}`
 const COMMENT_MAX = 2000
+const ANSWER_MAX = 1500
+/** Comments read per issue in one page: the gates read no further. */
+const COMMENTS_PAGE = 100
 const BODY_MAX = 8000
 const DOC_MAX = 40_000
 
@@ -257,6 +261,23 @@ const GITHUB_TOOLS: ToolDef[] = [
         labels: { type: "array", items: { type: "string" } },
       },
       required: ["number", "labels"],
+    },
+    readOnly: false,
+  },
+  {
+    name: "resume_dispatch",
+    description: `Send a held issue in ${REPO} back to the dispatch routine with the founder's answer: an issue in \`blocked\` (its report asked a question or failed) or \`waiting\` (the founder asks for changes to its draft pull request). Posts the answer as an **Answer** comment, then swaps the state label for ${DISPATCH_LABEL}; the new session continues the issue's own branch and pull request. Only when a listed person gave the answer and asked for the resume in this chat; at most ${MAX_RESUMES} resumes per issue; the answer never widens the Mandate. Always asks the user.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        number: issueNumber,
+        answer: {
+          type: "string",
+          description:
+            "The founder's answer, in their words: what the next session needs to continue. At most 1,500 characters.",
+        },
+      },
+      required: ["number", "answer"],
     },
     readOnly: false,
   },
@@ -631,9 +652,7 @@ export function forbiddenLabels(labels: string[], allowDispatch: boolean) {
 
 /** The pull request a dispatched session's report names, or null. */
 export function reportedPullRequest(comments: { body?: string | null }[]) {
-  const report = [...comments]
-    .reverse()
-    .find((c) => /\*\*Report\*\*/.test(c.body ?? ""))
+  const report = reportComments(comments).at(-1)
   const m =
     /Pull request:[^\n]*?https:\/\/github\.com\/cofferdamxyz\/([\w.-]+)\/pull\/(\d+)/i.exec(
       report?.body ?? ""
@@ -642,6 +661,128 @@ export function reportedPullRequest(comments: { body?: string | null }[]) {
   const repo = m[1]
   if (!(REPOSITORIES as readonly string[]).includes(repo)) return null
   return { repo, number: Number(m[2]) }
+}
+
+/** The routine's report comments, oldest first: each starts with **Report**. */
+export function reportComments<T extends { body?: string | null }>(
+  comments: T[]
+) {
+  return comments.filter((c) => /^\s*\*\*Report\*\*/.test(c.body ?? ""))
+}
+
+/** The state a report names (`ready`, `waiting`, `blocked`, `failed`, `dropped`), or null. */
+export function reportState(body: string | null | undefined) {
+  const m =
+    /^\s*-\s*State:\s*`?(ready|waiting|blocked|failed|dropped)\b/im.exec(
+      body ?? ""
+    )
+  return m ? m[1] : null
+}
+
+/** The report states a resume may answer, with the label each leaves on the issue. */
+const RESUMABLE: Record<string, string> = {
+  blocked: "blocked",
+  failed: "blocked",
+  waiting: "waiting",
+  ready: "waiting",
+}
+
+/**
+ * Why an issue may not be resumed, or null when it may (§6, the resume path).
+ * A resume sends a held issue back to the dispatch routine with the founder's
+ * answer: the issue must be a complete dispatch (lane, repository, Mandate),
+ * held in `blocked` or `waiting` by the routine and in no other state, its
+ * latest report must name a state that label holds, and it must not have used
+ * its resumes already. The issue is already counted in flight while it is
+ * held, so a resume never raises the count.
+ */
+export function resumeRefusal(
+  issue: Pick<Issue, "state" | "labels" | "body" | "pull_request">,
+  comments: { body?: string | null }[],
+  reported: ReportedState = { landed: false, pr: null }
+): string | null {
+  if (issue.pull_request) return "That is a pull request, not an issue."
+  if (comments.length >= COMMENTS_PAGE) {
+    return `The issue has ${COMMENTS_PAGE} comments or more, past what the bot reads in one page: resume it by hand, or file a new issue.`
+  }
+  if (issue.state !== "open") return "The issue is closed."
+  const names = issue.labels.map((l) => l.name)
+  if (!names.some((l) => (LANE_LABELS as readonly string[]).includes(l))) {
+    return `The issue has no lane label (${LANE_LABELS.join(", ")}).`
+  }
+  const body = issue.body ?? ""
+  if (!hasMandate(body)) return "The issue has no Mandate block."
+  if (!namedRepository(names, body)) {
+    return "The issue names no repository the routine may work in."
+  }
+  const states = [DISPATCH_LABEL, ...ROUTINE_LABELS] as string[]
+  const held = names.filter((l) => states.includes(l))
+  if (held.length !== 1 || !["blocked", "waiting"].includes(held[0])) {
+    return held.some((l) => l === DISPATCH_LABEL || l === "dispatched")
+      ? "A session already holds the issue, or one is starting."
+      : "The issue is not held in `blocked` or `waiting`: nothing was dispatched, or its state is unclear."
+  }
+  const reports = reportComments(comments)
+  const latest = reports.at(-1)
+  if (!latest) return "No report on the issue: nothing to answer."
+  const state = reportState(latest.body)
+  if (!state || RESUMABLE[state] !== held[0]) {
+    return `The latest report's state (${state ?? "none"}) does not match the issue's label (${held[0]}).`
+  }
+  if (reports.length > MAX_RESUMES) {
+    return `${reports.length} sessions have reported on this issue (at most ${MAX_RESUMES + 1}): file a new issue, or apply ${DISPATCH_LABEL} by hand.`
+  }
+  if (reported.landed || reported.pr?.merged) {
+    return "The report's pull request has landed: close the issue with close_issue, or file a new issue for more work."
+  }
+  if (reported.pr && reported.pr.state !== "open") {
+    return `The report's pull request is ${reported.pr.state} without a merge: the work has no branch to continue. File a new issue, or apply ${DISPATCH_LABEL} by hand.`
+  }
+  return null
+}
+
+/** What GitHub and Lockkeeper say of a report's pull request. */
+export interface ReportedState {
+  /** Lockkeeper's brief shows it landed on the default branch. */
+  landed: boolean
+  /** GitHub's own view, when the repository is public; null otherwise. */
+  pr: { state: string; merged: boolean } | null
+}
+
+/** Whether Lockkeeper's brief lists pull request `number` as landed. */
+export function landedInBrief(brief: string, number: number) {
+  const tag = `#${number}`
+  return new RegExp(
+    `^Landed on [^\\n]*\\n(?:- [^\\n]*\\n?)*?- [^\\n]*(?:pull request ${tag}\\b|\\(${tag}\\))`,
+    "m"
+  ).test(brief)
+}
+
+/** Headings the routine and the gates read: no bot comment may carry one. */
+const PROTOCOL_HEADING =
+  /^\s*(?:\*\*(?:Report|Answer|Mandate)\*\*|#{1,6}\s*(?:Report|Answer|Mandate)\b)/im
+
+/** Why a bot's comment or answer may not be posted as written, or null. */
+export function protocolHeadingRefusal(text: string): string | null {
+  return PROTOCOL_HEADING.test(text) || /\*\*(?:Report|Answer)\*\*/i.test(text)
+    ? "A bot's comment cannot carry a Report, Answer or Mandate heading: those belong to the dispatch routine, the resume and the issue body."
+    : null
+}
+
+/** The comment a resume posts before the label: the founder's answer, marked. */
+export function answerComment(
+  answer: string,
+  report: { html_url?: string; created_at?: string }
+) {
+  const to = report.html_url
+    ? `the report of ${report.created_at ?? "the last session"} (${report.html_url})`
+    : "the latest report"
+  return [
+    "**Answer**",
+    `- To: ${to}`,
+    "- From: the founder, in the Engineering bot's chat, approved on its card",
+    `- Answer: ${answer}`,
+  ].join("\n")
 }
 
 /**
@@ -670,10 +811,7 @@ export function closeRefusal(
   const tag = `#${target.number}`
   const inFlight = new RegExp(`PR ${tag}\\b`).test(brief)
   if (inFlight) return `${target.repo}${tag} is still in flight.`
-  const landed = new RegExp(
-    `^Landed on [^\\n]*\\n(?:- [^\\n]*\\n?)*?- [^\\n]*(?:pull request ${tag}\\b|\\(${tag}\\))`,
-    "m"
-  ).test(brief)
+  const landed = landedInBrief(brief, target.number)
   if (pr && !pr.merged) {
     return `${target.repo}${tag} is ${pr.state}, not merged.`
   }
@@ -681,6 +819,29 @@ export function closeRefusal(
     return `Lockkeeper does not show ${target.repo}${tag} landed on the default branch yet.`
   }
   return null
+}
+
+/**
+ * GitHub's own view of a pull request, readable without a token on a public
+ * repository; a private one answers 404, so null, and Lockkeeper decides.
+ */
+async function publicPullRequest(repo: string, number: number) {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/cofferdamxyz/${repo}/pulls/${number}`,
+      {
+        headers: {
+          accept: "application/vnd.github+json",
+          "user-agent": "cofferdam-coworkers",
+        },
+      }
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as { state: string; merged: boolean }
+    return { state: data.state, merged: data.merged === true }
+  } catch {
+    return null
+  }
 }
 
 async function openIssuesLabelled(env: Partial<GitHubAppEnv>, label: string) {
@@ -913,6 +1074,8 @@ async function callGitHub(
       const n = num(args, "number")
       const body = str(args, "body")?.trim() ?? ""
       if (!body) throw new Error("The comment is empty.")
+      const heading = protocolHeadingRefusal(body)
+      if (heading) throw new Error(`Not commented: ${heading}`)
       if (body.length > COMMENT_MAX) {
         throw new Error(
           `The comment is over ${COMMENT_MAX} characters; say it shorter.`
@@ -986,6 +1149,104 @@ async function callGitHub(
       )
       return { number: n, labels: result.map((l) => l.name) }
     }
+    case "resume_dispatch": {
+      const n = num(args, "number")
+      const answer = str(args, "answer")?.trim() ?? ""
+      if (!answer) throw new Error("A resume needs the founder's answer.")
+      if (answer.length > ANSWER_MAX) {
+        throw new Error(
+          `The answer is over ${ANSWER_MAX} characters; say it shorter.`
+        )
+      }
+      const heading = protocolHeadingRefusal(answer)
+      if (heading) throw new Error(`Not resumed: ${heading}`)
+      const issue = await repoApi<Issue>(
+        env,
+        { issues: "read" },
+        `/issues/${n}`,
+        {},
+        "reading the issue"
+      )
+      const comments = await repoApi<Comment[]>(
+        env,
+        { issues: "read" },
+        `/issues/${n}/comments?per_page=${COMMENTS_PAGE}`,
+        {},
+        "reading the comments"
+      )
+      const target = reportedPullRequest(comments)
+      const reported: ReportedState = { landed: false, pr: null }
+      if (target) {
+        const brief = await callLockkeeper(
+          presetLockkeeper(all, preset),
+          "brief",
+          { repo: target.repo, goal: issue.title }
+        )
+        reported.landed = landedInBrief(brief, target.number)
+        reported.pr = await publicPullRequest(target.repo, target.number)
+      }
+      const refusal = resumeRefusal(issue, comments, reported)
+      if (refusal) throw new Error(`Not resumed: ${refusal}`)
+      const report = reportComments(comments).at(-1)!
+      const body = answerComment(answer, report)
+      // A retried call finds its own answer already posted after the report.
+      const after = comments.slice(comments.indexOf(report) + 1)
+      const posted = after.find((c) => (c.body ?? "").trim() === body)
+      const answerUrl =
+        posted?.html_url ??
+        (
+          await repoApi<Comment>(
+            env,
+            { issues: "write" },
+            `/issues/${n}/comments`,
+            { method: "POST", body: JSON.stringify({ body }) },
+            "posting the answer"
+          )
+        ).html_url
+      // Remove the held state, then add dispatch: two label calls, never a
+      // replace from the snapshot, so a label changed meanwhile survives. The
+      // removal fails if another hand already moved the issue on (an unlabel
+      // fires nothing); only the add fires the routine.
+      const heldLabel = issue.labels
+        .map((l) => l.name)
+        .find((l) => l === "blocked" || l === "waiting")!
+      await repoApi<{ name: string }[]>(
+        env,
+        { issues: "write" },
+        `/issues/${n}/labels/${encodeURIComponent(heldLabel)}`,
+        { method: "DELETE" },
+        `removing ${heldLabel} (has the issue changed state since?)`
+      )
+      let result: { name: string }[]
+      try {
+        result = await repoApi<{ name: string }[]>(
+          env,
+          { issues: "write" },
+          `/issues/${n}/labels`,
+          {
+            method: "POST",
+            body: JSON.stringify({ labels: [DISPATCH_LABEL] }),
+          },
+          "adding dispatch"
+        )
+      } catch (err) {
+        // Put the held state back, so the issue never sits with none.
+        await repoApi(
+          env,
+          { issues: "write" },
+          `/issues/${n}/labels`,
+          { method: "POST", body: JSON.stringify({ labels: [heldLabel] }) },
+          `restoring ${heldLabel}`
+        ).catch(() => undefined)
+        throw err
+      }
+      return {
+        resumed: true,
+        answer: answerUrl,
+        number: n,
+        labels: result.map((l) => l.name),
+      }
+    }
     case "close_issue": {
       const n = num(args, "number")
       const issue = await repoApi<Issue>(
@@ -1010,28 +1271,7 @@ async function callGitHub(
           repo: target.repo,
           goal: issue.title,
         })
-        // GitHub's own view, readable without a token on a public
-        // repository; a private one answers 404 and Lockkeeper decides.
-        try {
-          const res = await fetch(
-            `https://api.github.com/repos/cofferdamxyz/${target.repo}/pulls/${target.number}`,
-            {
-              headers: {
-                accept: "application/vnd.github+json",
-                "user-agent": "cofferdam-coworkers",
-              },
-            }
-          )
-          if (res.ok) {
-            const data = (await res.json()) as {
-              state: string
-              merged: boolean
-            }
-            pr = { state: data.state, merged: data.merged === true }
-          }
-        } catch {
-          pr = null
-        }
+        pr = await publicPullRequest(target.repo, target.number)
       }
       const refusal = closeRefusal(issue, comments, brief, pr)
       if (refusal) throw new Error(`Not closed: ${refusal}`)

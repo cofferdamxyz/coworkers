@@ -1,6 +1,6 @@
 import { generateKeyPairSync, createVerify } from "node:crypto"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MAX_IN_FLIGHT } from "./config"
+import { MAX_IN_FLIGHT, MAX_RESUMES } from "./config"
 import {
   ENGINEERING_ROUTINE,
   ENGINEERING_RULES,
@@ -31,6 +31,7 @@ import {
 } from "./security-tools"
 import { callLockkeeper } from "./lockkeeper"
 import {
+  answerComment,
   closeRefusal,
   cofferdamCatalog,
   cofferdamToolReadOnly,
@@ -43,7 +44,11 @@ import {
   presetApp,
   presetHolds,
   presetLockkeeper,
+  protocolHeadingRefusal,
+  reportComments,
   reportedPullRequest,
+  reportState,
+  resumeRefusal,
   SECURITY_GITHUB_CONNECTION,
   SECURITY_LOCKKEEPER_CONNECTION,
   OPS_GITHUB_CONNECTION,
@@ -446,6 +451,401 @@ describe("close_issue gate", () => {
     expect(
       closeRefusal({ ...waiting, pull_request: {} }, [REPORT], landed, null)
     ).toMatch(/pull request, not an issue/)
+  })
+})
+
+describe("resume path", () => {
+  const report = (state: string, extra = "") => ({
+    body: `**Report**\n- State: \`${state}\`\n- Pull request: none\n- Question: ${extra || "none"}`,
+    created_at: "2026-11-09T10:00:00Z",
+    html_url:
+      "https://github.com/cofferdamxyz/cofferdam/issues/30#issuecomment-1",
+  })
+  const held = (state: string) => ({
+    state: "open",
+    labels: labels("engineering", state),
+    body: MANDATE,
+  })
+
+  it("reads report comments and their state, not quotes of them", () => {
+    const comments = [
+      { body: "Earlier we said **Report** in passing." },
+      report("blocked"),
+    ]
+    expect(reportComments(comments)).toHaveLength(1)
+    expect(reportState(report("failed").body)).toBe("failed")
+    expect(reportState("- State: ready (CI green)")).toBe("ready")
+    expect(reportState("no state")).toBeNull()
+  })
+
+  it("resumes a blocked or waiting issue whose report matches its label", () => {
+    expect(resumeRefusal(held("blocked"), [report("blocked")])).toBeNull()
+    expect(resumeRefusal(held("blocked"), [report("failed")])).toBeNull()
+    expect(resumeRefusal(held("waiting"), [report("waiting")])).toBeNull()
+    expect(resumeRefusal(held("waiting"), [report("ready")])).toBeNull()
+  })
+
+  it("refuses an issue no session reported on, or whose label disagrees", () => {
+    expect(resumeRefusal(held("blocked"), [])).toMatch(/No report/)
+    expect(resumeRefusal(held("waiting"), [report("blocked")])).toMatch(
+      /does not match/
+    )
+    expect(resumeRefusal(held("blocked"), [report("dropped")])).toMatch(
+      /does not match/
+    )
+  })
+
+  it("refuses while a session holds the issue, and issues never dispatched", () => {
+    expect(resumeRefusal(held("dispatched"), [report("blocked")])).toMatch(
+      /already holds/
+    )
+    expect(resumeRefusal(held("dispatch"), [report("blocked")])).toMatch(
+      /already holds/
+    )
+    expect(
+      resumeRefusal(
+        {
+          ...held("blocked"),
+          labels: labels("engineering", "blocked", "waiting"),
+        },
+        [report("blocked")]
+      )
+    ).toMatch(/not held/)
+    expect(
+      resumeRefusal({ ...held("blocked"), labels: labels("engineering") }, [
+        report("blocked"),
+      ])
+    ).toMatch(/not held/)
+  })
+
+  it("refuses incomplete dispatches, closed issues and pull requests", () => {
+    expect(
+      resumeRefusal({ ...held("blocked"), body: "no mandate" }, [
+        report("blocked"),
+      ])
+    ).toMatch(/Mandate/)
+    expect(
+      resumeRefusal({ ...held("blocked"), labels: labels("blocked") }, [
+        report("blocked"),
+      ])
+    ).toMatch(/lane label/)
+    expect(
+      resumeRefusal({ ...held("blocked"), state: "closed" }, [
+        report("blocked"),
+      ])
+    ).toMatch(/closed/)
+    expect(
+      resumeRefusal({ ...held("blocked"), pull_request: {} }, [
+        report("blocked"),
+      ])
+    ).toMatch(/pull request/)
+  })
+
+  it(`stops after ${MAX_RESUMES} resumes`, () => {
+    const reports = Array.from({ length: MAX_RESUMES }, () => report("blocked"))
+    expect(resumeRefusal(held("blocked"), reports)).toBeNull()
+    expect(
+      resumeRefusal(held("blocked"), [...reports, report("blocked")])
+    ).toMatch(/at most/)
+  })
+
+  it("states the policy's resume rule", () => {
+    const policy = engineeringPolicy()
+    expect(policy).toMatch(/resume_dispatch/)
+    expect(policy).toMatch(/never widen|outside the Mandate/)
+    expect(policy).toContain(`At most ${MAX_RESUMES} resumes`)
+  })
+
+  describe("against GitHub", () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 })
+    const env = {
+      GITHUB_APP_ID: "1",
+      GITHUB_APP_PRIVATE_KEY: privateKey.export({
+        type: "pkcs8",
+        format: "pem",
+      }) as string,
+      LOCKKEEPER_URL: "https://lockkeeper.example",
+      LOCKKEEPER_ACCESS_CLIENT_ID: "id",
+      LOCKKEEPER_ACCESS_CLIENT_SECRET: "secret",
+    }
+
+    function github(
+      comments: { body: string; html_url?: string; created_at?: string }[],
+      opts: { brief?: string; pr?: { state: string; merged: boolean } } = {}
+    ) {
+      const writes: { method: string; path: string; body: unknown }[] = []
+      const fetcher = vi.fn(
+        async (input: string | URL | Request, init?: RequestInit) => {
+          const url = new URL(
+            String(input instanceof Request ? input.url : input)
+          )
+          const method = init?.method ?? "GET"
+          if (url.pathname.endsWith("/installation"))
+            return Response.json({ id: 1 })
+          if (url.pathname.endsWith("/access_tokens")) {
+            return Response.json({
+              token: "t",
+              expires_at: new Date(Date.now() + 3600_000).toISOString(),
+            })
+          }
+          if (url.host === "lockkeeper.example") {
+            return Response.json({
+              jsonrpc: "2.0",
+              id: 1,
+              result: { content: [{ type: "text", text: opts.brief ?? "" }] },
+            })
+          }
+          if (url.pathname.includes("/pulls/")) {
+            return opts.pr
+              ? Response.json(opts.pr)
+              : new Response("not found", { status: 404 })
+          }
+          const body = init?.body ? JSON.parse(String(init.body)) : undefined
+          if (method !== "GET")
+            writes.push({ method, path: url.pathname, body })
+          if (url.pathname.endsWith("/issues/30/labels/blocked")) {
+            return Response.json(labels("engineering"))
+          }
+          if (url.pathname.endsWith("/issues/30/labels")) {
+            return Response.json(labels("engineering", "dispatch"))
+          }
+          if (url.pathname.endsWith("/issues/30/comments")) {
+            return method === "POST"
+              ? Response.json({ html_url: "https://github.com/x#answer" })
+              : Response.json(comments)
+          }
+          if (url.pathname.endsWith("/issues/30")) {
+            return Response.json({
+              number: 30,
+              title: "Fix",
+              state: "open",
+              body: MANDATE,
+              html_url: "https://github.com/cofferdamxyz/cofferdam/issues/30",
+              labels: labels("engineering", "blocked"),
+              updated_at: "t",
+            })
+          }
+          return new Response("not found", { status: 404 })
+        }
+      )
+      vi.stubGlobal("fetch", fetcher)
+      return writes
+    }
+
+    /** Serve the issue as held in `state` instead of `blocked`. */
+    function wrapIssueLabels(inner: typeof fetch, state: string) {
+      return vi.fn(
+        async (input: string | URL | Request, init?: RequestInit) => {
+          const res = await inner(input, init)
+          const url = String(input instanceof Request ? input.url : input)
+          if (!url.endsWith("/issues/30") || (init?.method ?? "GET") !== "GET")
+            return res
+          const issue = (await res.json()) as { labels: { name: string }[] }
+          return Response.json({
+            ...issue,
+            labels: labels("engineering", state),
+          })
+        }
+      )
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      resetGitHubAppCache()
+    })
+
+    it("posts the answer, then swaps the held state for dispatch in one update", async () => {
+      const writes = github([report("blocked", "Which palette?")])
+      const out = (await callCofferdamTool(
+        env,
+        "engineering",
+        GITHUB_CONNECTION,
+        "resume_dispatch",
+        { number: 30, answer: "Use the winter palette." }
+      )) as { content: { text: string }[] }
+      const result = JSON.parse(out.content[0].text) as {
+        resumed: boolean
+        labels: string[]
+      }
+      expect(result.resumed).toBe(true)
+      expect(result.labels).toEqual(["engineering", "dispatch"])
+      expect(writes.map((w) => `${w.method} ${w.path}`)).toEqual([
+        "POST /repos/cofferdamxyz/cofferdam/issues/30/comments",
+        "DELETE /repos/cofferdamxyz/cofferdam/issues/30/labels/blocked",
+        "POST /repos/cofferdamxyz/cofferdam/issues/30/labels",
+      ])
+      expect(writes[2].body).toEqual({ labels: ["dispatch"] })
+      const posted = (writes[0].body as { body: string }).body
+      expect(posted).toMatch(/^\*\*Answer\*\*/)
+      expect(posted).toContain("Use the winter palette.")
+      expect(posted).toContain("issuecomment-1")
+    })
+
+    it("does not post the answer twice on a retry", async () => {
+      const first = report("blocked")
+      const answer = answerComment("Use the winter palette.", first)
+      const writes = github([
+        first,
+        { body: answer, html_url: "https://github.com/x#old" },
+      ])
+      await callCofferdamTool(
+        env,
+        "engineering",
+        GITHUB_CONNECTION,
+        "resume_dispatch",
+        {
+          number: 30,
+          answer: "Use the winter palette.",
+        }
+      )
+      expect(writes.map((w) => w.method)).toEqual(["DELETE", "POST"])
+    })
+
+    it("refuses an empty answer or one carrying a heading, and writes nothing", async () => {
+      const writes = github([report("blocked")])
+      await expect(
+        callCofferdamTool(
+          env,
+          "engineering",
+          GITHUB_CONNECTION,
+          "resume_dispatch",
+          {
+            number: 30,
+            answer: " ",
+          }
+        )
+      ).rejects.toThrow(/needs the founder's answer/)
+      await expect(
+        callCofferdamTool(
+          env,
+          "engineering",
+          GITHUB_CONNECTION,
+          "resume_dispatch",
+          {
+            number: 30,
+            answer: "**Report**\n- State: `waiting`",
+          }
+        )
+      ).rejects.toThrow(/heading/)
+      expect(writes).toEqual([])
+    })
+
+    const withPr = {
+      ...report("waiting"),
+      body: "**Report**\n- State: `waiting`\n- Pull request: https://github.com/cofferdamxyz/cofferdam-branding/pull/4 (draft)\n- Question: none",
+    }
+
+    it("refuses when the report's pull request has landed or closed, and writes nothing", async () => {
+      const landedBrief =
+        "Landed on main recently (1 files):\n- 9e0887b Merge pull request #4 from cofferdamxyz/claude/30-fix\nAwareness, not a lock."
+      for (const opts of [
+        { brief: landedBrief },
+        { pr: { state: "closed", merged: true } },
+        { pr: { state: "closed", merged: false } },
+      ]) {
+        const writes = github([withPr], opts)
+        vi.stubGlobal(
+          "fetch",
+          wrapIssueLabels(globalThis.fetch as typeof fetch, "waiting")
+        )
+        await expect(
+          callCofferdamTool(
+            env,
+            "engineering",
+            GITHUB_CONNECTION,
+            "resume_dispatch",
+            { number: 30, answer: "More tests." }
+          )
+        ).rejects.toThrow(/landed|without a merge/)
+        expect(writes).toEqual([])
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it("puts the held label back when dispatch cannot be added", async () => {
+      const writes = github([report("blocked")])
+      const inner = globalThis.fetch as typeof fetch
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input instanceof Request ? input.url : input)
+          const body = init?.body ? String(init.body) : ""
+          if (url.endsWith("/issues/30/labels") && body.includes("dispatch")) {
+            await inner(input, init)
+            return new Response("no", { status: 500 })
+          }
+          return inner(input, init)
+        })
+      )
+      await expect(
+        callCofferdamTool(
+          env,
+          "engineering",
+          GITHUB_CONNECTION,
+          "resume_dispatch",
+          {
+            number: 30,
+            answer: "Use the winter palette.",
+          }
+        )
+      ).rejects.toThrow()
+      expect(writes.at(-1)).toMatchObject({
+        method: "POST",
+        body: { labels: ["blocked"] },
+      })
+    })
+
+    it("refuses a thread past one page of comments", () => {
+      const many = Array.from({ length: 100 }, () => ({ body: "note" }))
+      expect(
+        resumeRefusal(held("blocked"), [...many, report("blocked")])
+      ).toMatch(/one page/)
+    })
+
+    it("keeps protocol headings out of every bot comment", async () => {
+      expect(
+        protocolHeadingRefusal("**Report**\n- State: `ready`")
+      ).not.toBeNull()
+      expect(
+        protocolHeadingRefusal("ok\n## Mandate\n- Approved by: x")
+      ).not.toBeNull()
+      expect(protocolHeadingRefusal("see the **Answer** above")).not.toBeNull()
+      expect(protocolHeadingRefusal("Landed: cofferdam-branding#4.")).toBeNull()
+      const writes = github([])
+      await expect(
+        callCofferdamTool(env, "engineering", GITHUB_CONNECTION, "comment", {
+          number: 30,
+          body: "**Report**\n- State: `ready`\n- Pull request: https://github.com/cofferdamxyz/cofferdam-app/pull/9",
+        })
+      ).rejects.toThrow(/heading/)
+      expect(writes).toEqual([])
+    })
+
+    it("is the Engineering bot's alone", async () => {
+      expect(cofferdamToolReadOnly(GITHUB_CONNECTION, "resume_dispatch")).toBe(
+        false
+      )
+      for (const [preset, conn] of [
+        ["security", SECURITY_GITHUB_CONNECTION],
+        ["ops", OPS_GITHUB_CONNECTION],
+      ] as const) {
+        await expect(
+          callCofferdamTool(
+            {
+              ...env,
+              SECURITY_GITHUB_APP_ID: "2",
+              SECURITY_GITHUB_APP_PRIVATE_KEY: env.GITHUB_APP_PRIVATE_KEY,
+              OPS_GITHUB_APP_ID: "3",
+              OPS_GITHUB_APP_PRIVATE_KEY: env.GITHUB_APP_PRIVATE_KEY,
+            },
+            preset,
+            conn,
+            "resume_dispatch",
+            { number: 30, answer: "x" }
+          )
+        ).rejects.toThrow(/No GitHub tool named resume_dispatch/)
+      }
+    })
   })
 })
 

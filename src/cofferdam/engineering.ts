@@ -2,7 +2,8 @@
  * The Engineering bot (agentic-loop-completion.md §4): the coordinator of
  * the engineering lane, never an engineer. It reads the backlog, GitHub and
  * Lockkeeper; files, labels and closes issues only through its own GitHub App,
- * asking every time; applies `dispatch` only when a listed person asked; closes
+ * asking every time; applies `dispatch` only when a listed person asked, and
+ * re-applies it to a held issue only with that person's answer (resume); closes
  * only an issue whose pull request Lockkeeper shows merged; never edits
  * a repository's source; holds no Cofferdam credential beyond its two
  * connections.
@@ -24,6 +25,7 @@ import {
   LISTED_PEOPLE,
   MAX_IN_FLIGHT,
   MAX_IN_FLIGHT_PER_REPO,
+  MAX_RESUMES,
   ROUTINE_LABELS,
   WORKSPACE_REPO,
 } from "./config"
@@ -112,6 +114,7 @@ Writes, each one shown to the founder on an approval card first, never in a back
 - Comment on an issue: one sentence by default, never more than a hundred words, except the landing order on the standing engineering issue.
 - Close an issue only once its pull request landed: the issue is in \`waiting\`, its report names the pull request, and Lockkeeper shows it merged on the default branch and out of flight; the tool checks and refuses otherwise. Say which pull request landed. Never close for any other reason: a closed pull request without a merge, a stale issue or a duplicate is the founder's call.
 - Propose \`${DISPATCH_LABEL}\` and apply it only after a listed person asked for it explicitly in this chat. The issue must carry a lane label, name its repository (a repo:<name> label or a "Repository: <name>" line), and a Mandate block. Limits: ${MAX_IN_FLIGHT} dispatched issues in flight across all repositories, ${MAX_IN_FLIGHT_PER_REPO} per repository, five dispatches a day. Never apply ${ROUTINE_LABELS.join(", ")}: those belong to the dispatch routine.
+- Resume a held issue with resume_dispatch when a listed person answers its report in this chat and asks for the work to continue: an issue in \`blocked\` (the report's question or failure) or in \`waiting\` (changes the founder wants on its draft pull request). Put the founder's answer in their words, never your own summary of what they might mean; the tool posts it as an **Answer** comment and swaps the state for \`${DISPATCH_LABEL}\`, and the next session continues the issue's own branch and pull request. At most ${MAX_RESUMES} resumes per issue; a resume counts as one of the day's five dispatches. An answer that asks for work outside the Mandate is a new issue, not a resume: say so instead.
 
 A Mandate block, written once and never edited (a wider scope is a new issue):
 **Mandate**

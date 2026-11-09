@@ -35,6 +35,14 @@ export const ROUTINE_LABELS = ["dispatched", "blocked", "waiting"] as const
 export const MAX_IN_FLIGHT = 2
 export const MAX_IN_FLIGHT_PER_REPO = 1
 
+/**
+ * Resumes per issue (§6, the resume path): a `blocked` or `waiting` issue may
+ * be sent back to the routine with the founder's answer this many times, so
+ * one issue runs at most three sessions; past that it is a new issue, or a
+ * `dispatch` a person applies by hand.
+ */
+export const MAX_RESUMES = 2
+
 /** The Security bot's lane label: every issue it files carries it. */
 export const SECURITY_LABEL = "security"
 
