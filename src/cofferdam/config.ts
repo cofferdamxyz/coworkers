@@ -74,7 +74,19 @@ export const LISTED_BOTS = [
 ] as const
 
 /** Lockkeeper's MCP tools a preset bot may call: reads only. */
-export const LOCKKEEPER_TOOLS = ["brief", "in_flight", "check"] as const
+export const LOCKKEEPER_TOOLS = [
+  "brief",
+  "in_flight",
+  "check",
+  "landing_order",
+] as const
+
+/**
+ * How a dispatched branch names its issue: the routine pushes
+ * `claude/<issue>-<slug>` (docs/runbooks/dispatch-routine.md), and Lockkeeper
+ * binds a pull request to its issue by that name alone.
+ */
+export const DISPATCH_BRANCH = /^claude\/(\d+)-/
 
 /**
  * The repositories Lockkeeper watches, for the bots' `repo` arguments, and the

@@ -17,6 +17,7 @@
  */
 import type { AppCatalog, AppTool, SpendSummary } from "@/lib/types"
 import {
+  DISPATCH_BRANCH,
   DISPATCH_LABEL,
   LANE_LABELS,
   BOT_BUDGET_PER_DAY_USD,
@@ -425,6 +426,13 @@ const LOCKKEEPER_TOOL_DEFS: ToolDef[] = [
     },
     readOnly: true,
   },
+  {
+    name: "landing_order",
+    description:
+      "Lockkeeper: the order in which the open pull requests should land, per repository or for one repository, with each one's CI, whether it is unattended-eligible and why not, its risk to the others, and the issue its branch names. Advice only: a person lands.",
+    inputSchema: { type: "object", properties: { repo: repoArg } },
+    readOnly: true,
+  },
 ]
 
 /** The catalog entries for a preset bot: appended to the hub's own. */
@@ -797,7 +805,8 @@ export function closeRefusal(
   issue: Pick<Issue, "state" | "labels" | "pull_request">,
   comments: { body?: string | null }[],
   brief: string,
-  pr: { state: string; merged: boolean } | null
+  pr: { state: string; merged: boolean; head?: string | null } | null,
+  issueNumber?: number
 ): string | null {
   if (issue.pull_request) return "That is a pull request, not an issue."
   if (issue.state !== "open") return "The issue is already closed."
@@ -809,6 +818,12 @@ export function closeRefusal(
     return "No report on the issue names a pull request."
   }
   const tag = `#${target.number}`
+  // A dispatched branch names its issue. When GitHub shows the branch and it
+  // names another issue, the report points at someone else's pull request.
+  const bound = boundIssue(pr?.head)
+  if (issueNumber !== undefined && bound !== null && bound !== issueNumber) {
+    return `${target.repo}${tag} is on a branch that names issue #${bound}, not this one.`
+  }
   const inFlight = new RegExp(`PR ${tag}\\b`).test(brief)
   if (inFlight) return `${target.repo}${tag} is still in flight.`
   const landed = landedInBrief(brief, target.number)
@@ -819,6 +834,13 @@ export function closeRefusal(
     return `Lockkeeper does not show ${target.repo}${tag} landed on the default branch yet.`
   }
   return null
+}
+
+/** The issue a dispatch branch (`claude/<issue>-<slug>`) names, or null. */
+export function boundIssue(branch: string | null | undefined): number | null {
+  const m = DISPATCH_BRANCH.exec(branch ?? "")
+  const n = m ? Number(m[1]) : Number.NaN
+  return Number.isInteger(n) && n > 0 ? n : null
 }
 
 /**
@@ -837,8 +859,16 @@ async function publicPullRequest(repo: string, number: number) {
       }
     )
     if (!res.ok) return null
-    const data = (await res.json()) as { state: string; merged: boolean }
-    return { state: data.state, merged: data.merged === true }
+    const data = (await res.json()) as {
+      state: string
+      merged: boolean
+      head?: { ref?: string }
+    }
+    return {
+      state: data.state,
+      merged: data.merged === true,
+      head: typeof data.head?.ref === "string" ? data.head.ref : null,
+    }
   } catch {
     return null
   }
@@ -1265,7 +1295,11 @@ async function callGitHub(
       )
       const target = reportedPullRequest(comments)
       let brief = ""
-      let pr: { state: string; merged: boolean } | null = null
+      let pr: {
+        state: string
+        merged: boolean
+        head?: string | null
+      } | null = null
       if (target) {
         brief = await callLockkeeper(presetLockkeeper(all, preset), "brief", {
           repo: target.repo,
@@ -1273,7 +1307,7 @@ async function callGitHub(
         })
         pr = await publicPullRequest(target.repo, target.number)
       }
-      const refusal = closeRefusal(issue, comments, brief, pr)
+      const refusal = closeRefusal(issue, comments, brief, pr, n)
       if (refusal) throw new Error(`Not closed: ${refusal}`)
       const closed = await repoApi<Issue>(
         env,

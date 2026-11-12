@@ -28,13 +28,14 @@ and the rest of this file (below the line) is upstream's own guide.
   (`engineering.ts`, `security.ts`, `ops.ts`; `presets.ts` maps a preset to
   them and holds the shared floor check), and each bot's deployment connections
   (`tools.ts`): its own GitHub App, and its own Lockkeeper Access service token
-  (`brief`, `in_flight`, `check`) for Engineering and Security. Engineering: issues in the workspace
+  (`brief`, `in_flight`, `check`, `landing_order`; reads only) for Engineering and Security. Engineering: issues in the workspace
   repository only, with the `dispatch` guard, the `resume_dispatch` gate (a
   `blocked` or `waiting` issue whose latest report matches its label, the
   founder's answer posted as an **Answer** comment, then the label swapped for
   `dispatch`, at most `MAX_RESUMES` per issue, never on a landed or closed
   pull request) and the `close_issue` gate (only an issue in `waiting` whose
-  pull request Lockkeeper shows merged); no bot comment carries a **Report**,
+  pull request Lockkeeper shows merged, and never one whose branch, where
+  GitHub shows it, names another issue: `boundIssue`); no bot comment carries a **Report**,
   **Answer** or **Mandate** heading (`protocolHeadingRefusal`). Security:
   Dependabot, code scanning and secret scanning alerts, Code Quality findings
   and setup, pull requests (reads only, paged to exact totals) and Copilot

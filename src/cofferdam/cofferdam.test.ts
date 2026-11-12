@@ -32,6 +32,7 @@ import {
 import { callLockkeeper } from "./lockkeeper"
 import {
   answerComment,
+  boundIssue,
   closeRefusal,
   cofferdamCatalog,
   cofferdamToolReadOnly,
@@ -286,6 +287,7 @@ describe("catalog", () => {
       "brief",
       "check",
       "in_flight",
+      "landing_order",
     ])
     expect(catalog.tools.every((t) => t.readOnly)).toBe(true)
     expect(cofferdamToolReadOnly(GITHUB_CONNECTION, "list_issues")).toBe(true)
@@ -411,6 +413,30 @@ describe("close_issue gate", () => {
     expect(
       closeRefusal(waiting, [REPORT], landed, { state: "closed", merged: true })
     ).toBeNull()
+  })
+
+  it("refuses a pull request whose branch names another issue", () => {
+    const merged = { state: "closed", merged: true }
+    expect(boundIssue("claude/29-merge-helper")).toBe(29)
+    expect(boundIssue("claude/elated-fermat-046579")).toBeNull()
+    expect(boundIssue("dependabot/npm_and_yarn/zod-4.6.7")).toBeNull()
+    expect(boundIssue(null)).toBeNull()
+    // The branch names this issue, or no issue at all, or could not be read.
+    for (const head of ["claude/29-merge-helper", "fix/merge", null]) {
+      expect(
+        closeRefusal(waiting, [REPORT], landed, { ...merged, head }, 29)
+      ).toBeNull()
+    }
+    expect(closeRefusal(waiting, [REPORT], landed, null, 29)).toBeNull()
+    expect(
+      closeRefusal(
+        waiting,
+        [REPORT],
+        landed,
+        { ...merged, head: "claude/31-other" },
+        29
+      )
+    ).toMatch(/names issue #31, not this one/)
   })
 
   it("refuses while the pull request is in flight or unmerged", () => {

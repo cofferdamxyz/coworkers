@@ -745,7 +745,9 @@ Cofferdam OS).
 Created by code (`src/cofferdam/engineering.ts`) in the owner's hub on the first
 sign-in, never by hand:
 
-- **Reads:** Lockkeeper `brief`, `in_flight`, `check`; issues of `cofferdamxyz/cofferdam`
+- **Reads:** Lockkeeper `brief`, `in_flight`, `check` and, since 2026-11-11 (not deployed
+  yet; it needs Lockkeeper's step 3 deployed first, and answers "unknown tool" until then),
+  `landing_order`; issues of `cofferdamxyz/cofferdam`
   (list, read with comments, search); `TODO.md` if the App has Contents
   Read-only.
 - **Writes, each on an approval card, never in a background turn:** file an issue
@@ -755,7 +757,8 @@ sign-in, never by hand:
   `waiting`. All of it enforced in code, whatever its settings say.
 - **Never:** a shell, scripts, the browser, email, managing other bots, any
   repository's source, any write outside the workspace repository.
-- **Routine:** "Daily engineering check-in", weekdays 08:30 São Paulo, read-only.
+- **Routine:** "Daily engineering check-in", weekdays 08:30 São Paulo, read-only; from
+  2026-11-11 it also names the pull request Lockkeeper would land first per repository.
 - **Prompt:** upstream's, then the turn's context, then the Cofferdam policy
   section last, regenerated from code every turn.
 - The GitHub and Lockkeeper connections are the deployment's, listed only to
