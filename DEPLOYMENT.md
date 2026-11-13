@@ -410,6 +410,15 @@ bot's exact alert totals (every list paged), "not enabled" instead of a 403,
 and its pull request reads (they answer once the installation accepts Pull
 requests read). Tests 221 passed on that commit.
 
+**Deployed 2026-11-13 15:50 UTC** as `5e9b708e` from `main` at `b51335b`: the
+Engineering and Security bots read Lockkeeper's `landing_order`, and
+`close_issue` refuses a pull request whose branch names another issue. Two
+tries the night before failed with `fetch failed`; this one went through
+ProtonVPN too (the upload took 547 s) and `cf deploy` then exited with "Custom
+domains: terminated": the version is live at 100% and `bots.cofferdam.xyz`,
+attached since the first deploy, still answers through Access. Tests 250
+passed on that commit.
+
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
 came back with Lockkeeper's branches, pull requests, the Dependabot queue and
@@ -745,8 +754,7 @@ Cofferdam OS).
 Created by code (`src/cofferdam/engineering.ts`) in the owner's hub on the first
 sign-in, never by hand:
 
-- **Reads:** Lockkeeper `brief`, `in_flight`, `check` and, since 2026-11-11 (not deployed
-  yet; it needs Lockkeeper's step 3 deployed first, and answers "unknown tool" until then),
+- **Reads:** Lockkeeper `brief`, `in_flight`, `check` and, since 2026-11-13 (built 2026-11-11),
   `landing_order`; issues of `cofferdamxyz/cofferdam`
   (list, read with comments, search); `TODO.md` if the App has Contents
   Read-only.
