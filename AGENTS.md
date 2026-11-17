@@ -42,9 +42,16 @@ and the rest of this file (below the line) is upstream's own guide.
   Autofix (`security-tools.ts`, every answer cut to listed fields, never a secret
   value), issue reads, and filing and comments in the `security` lane only.
   Ops: workspace Markdown (`read_doc`), issue reads, comments on `ops` issues
-  only, and the bots' own spend (`bots_spend`, answered by the hub from its
-  gateway sync); no Lockkeeper and no billing credential (Cofferdam OS stays
-  the meter). The
+  only, the bots' own spend (`bots_spend`, answered by the hub from its
+  gateway sync), and the ZKPassport watch (`zkpassport.ts`: `zkpassport_live`
+  and `zkpassport_watch`, public reads of Base's root registry, npm, GitHub and
+  ZKPassport's circuits manifest from fixed endpoints, compared with the
+  known-good set in the workspace `docs/runbooks/zkpassport-watch.md`; a daily
+  routine, and `create_issue` for the one watch issue only, `ops` label alone,
+  `opsIssueRefusal`; the watch issue takes only text ending with the watch's
+  marker line, `watchMarkerRefusal`); no Lockkeeper, no billing credential (Cofferdam OS stays
+  the meter), and never ZKPassport's code. A preset's further routines
+  (`extraRoutines`) sync each under its own key (`presetRoutines`). The
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
   per-permission tokens for any App. Tests in `cofferdam.test.ts`.
 - `src/cofferdam/brand/`: the Cofferdam brand over upstream's theme tokens

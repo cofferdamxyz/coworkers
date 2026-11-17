@@ -1,4 +1,6 @@
 import { generateKeyPairSync, createVerify } from "node:crypto"
+import { existsSync, readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MAX_IN_FLIGHT, MAX_RESUMES } from "./config"
 import {
@@ -11,10 +13,16 @@ import {
   isPreset,
   PRESET_DEFS,
   presetPolicy,
+  presetRoutines,
   routineKey,
   stricter,
 } from "./presets"
-import { OPS_ROUTINE, OPS_RULES, opsPolicy } from "./ops"
+import {
+  OPS_ROUTINE,
+  OPS_RULES,
+  OPS_ZKPASSPORT_ROUTINE,
+  opsPolicy,
+} from "./ops"
 import { SECURITY_ROUTINE, SECURITY_RULES, securityPolicy } from "./security"
 import {
   codeQualityFinding,
@@ -30,6 +38,16 @@ import {
   secretScanningAlert,
 } from "./security-tools"
 import { callLockkeeper } from "./lockkeeper"
+import {
+  compare,
+  changeId,
+  filedIds,
+  watchMarkerRefusal,
+  parseKnownGood,
+  readLive,
+  WATCH_MARKER,
+  watchReport,
+} from "./zkpassport"
 import {
   answerComment,
   boundIssue,
@@ -54,7 +72,9 @@ import {
   SECURITY_LOCKKEEPER_CONNECTION,
   OPS_GITHUB_CONNECTION,
   OPS_SPEND_CONNECTION,
+  OPS_ZKPASSPORT_CONNECTION,
   opsCommentRefusal,
+  opsIssueRefusal,
   opsDocRefusal,
   securityCommentRefusal,
   securityLabelRefusal,
@@ -71,6 +91,11 @@ Repository: cofferdam-branding
 - Strength: explicit
 - Rule: requested
 - Judged under: workspace commit abc1234`
+
+/** The workspace runbook, beside this repository on the Mac (absent in CI). */
+const WORKSPACE_RUNBOOK = fileURLToPath(
+  new URL("../../../docs/runbooks/zkpassport-watch.md", import.meta.url)
+)
 
 const labels = (...names: string[]) => names.map((name) => ({ name }))
 
@@ -1481,6 +1506,23 @@ describe("Ops bot", () => {
     expect(OPS_ROUTINE.prompt).toMatch(/Billing Monitor/)
   })
 
+  it("watches ZKPassport every day, read-only, and syncs it under its own key", () => {
+    expect(OPS_ZKPASSPORT_ROUTINE.when).toBe("0 7 * * *")
+    expect(OPS_ZKPASSPORT_ROUTINE.onlyNew).toBe(false)
+    expect(OPS_ZKPASSPORT_ROUTINE.prompt).toMatch(/zkpassport_watch/)
+    expect(OPS_ZKPASSPORT_ROUTINE.prompt).toMatch(/read only, post nothing/)
+    expect(OPS_ZKPASSPORT_ROUTINE.prompt).toMatch(/verify on the Mac/)
+    expect(OPS_ZKPASSPORT_ROUTINE.prompt).toMatch(/certroot/)
+    const keys = presetRoutines(PRESET_DEFS.ops).map((r) => r.storageKey)
+    // The check-in keeps the key existing bots already stored.
+    expect(keys).toEqual([
+      "cofferdam_routine",
+      "cofferdam_routine:ZKPassport watch",
+    ])
+    expect(presetRoutines(PRESET_DEFS.engineering)).toHaveLength(1)
+    expect(presetRoutines(PRESET_DEFS.security)).toHaveLength(1)
+  })
+
   it("states a policy with one billing meter and comments on ops issues only", () => {
     const policy = opsPolicy()
     expect(policy.startsWith("# Cofferdam policy")).toBe(true)
@@ -1490,26 +1532,38 @@ describe("Ops bot", () => {
     expect(policy).toMatch(/cofferdamxyz\/cofferdam#14 /)
     expect(policy).toMatch(/Message from Cloudflare MCP Portal/)
     expect(policy).toMatch(/changes no permission/)
+    expect(policy).toMatch(/file nothing but the ZKPassport watch issue/)
+    expect(policy).toMatch(/never run ZKPassport's code/)
+    expect(policy).toMatch(/docs\/runbooks\/zkpassport-watch\.md/)
   })
 
-  it("lists documents, issue reads, its comment and the bots' spend, and no Lockkeeper", () => {
+  it("lists documents, issue reads, its comment, the watch issue, the bots' spend and the ZKPassport watch, and no Lockkeeper", () => {
     const catalog = cofferdamCatalog(env, "ops")
     expect(catalog.tools.map((t) => t.name).sort()).toEqual([
       "bots_spend",
       "comment",
+      "create_issue",
       "get_issue",
       "list_issues",
       "read_doc",
       "search_issues",
+      "zkpassport_live",
+      "zkpassport_watch",
     ])
     expect(catalog.apps.map((a) => a.id).sort()).toEqual([
       OPS_GITHUB_CONNECTION,
       OPS_SPEND_CONNECTION,
+      OPS_ZKPASSPORT_CONNECTION,
     ])
     const ro = (c: string, n: string) => cofferdamToolReadOnly(c, n)
     expect(ro(OPS_GITHUB_CONNECTION, "read_doc")).toBe(true)
     expect(ro(OPS_GITHUB_CONNECTION, "comment")).toBe(false)
+    expect(ro(OPS_GITHUB_CONNECTION, "create_issue")).toBe(false)
     expect(ro(OPS_SPEND_CONNECTION, "bots_spend")).toBe(true)
+    expect(ro(OPS_ZKPASSPORT_CONNECTION, "zkpassport_live")).toBe(true)
+    expect(ro(OPS_ZKPASSPORT_CONNECTION, "zkpassport_watch")).toBe(true)
+    expect(ro(OPS_ZKPASSPORT_CONNECTION, "create_issue")).toBe(false)
+    expect(presetHolds("security", OPS_ZKPASSPORT_CONNECTION)).toBe(false)
     expect(presetHolds("ops", LOCKKEEPER_CONNECTION)).toBe(false)
     expect(presetHolds("ops", OPS_SPEND_CONNECTION)).toBe(true)
     expect(presetHolds("engineering", OPS_SPEND_CONNECTION)).toBe(false)
@@ -1521,8 +1575,8 @@ describe("Ops bot", () => {
     expect(empty.apps.every((a) => a.status === "failed")).toBe(true)
   })
 
-  it("refuses any write but its comment", async () => {
-    for (const name of ["add_labels", "create_issue", "close_issue"]) {
+  it("refuses any write but its comment and the watch issue", async () => {
+    for (const name of ["add_labels", "close_issue", "resume_dispatch"]) {
       await expect(
         callCofferdamTool(env, "ops", OPS_GITHUB_CONNECTION, name, {
           number: 1,
@@ -1533,8 +1587,38 @@ describe("Ops bot", () => {
       ).rejects.toThrow(/No GitHub tool named/)
     }
     await expect(
+      callCofferdamTool(env, "ops", OPS_GITHUB_CONNECTION, "create_issue", {
+        title: "Renewals",
+        body: "b",
+        labels: ["ops"],
+      })
+    ).rejects.toThrow(/files only the ZKPassport watch issue/)
+    await expect(
       callCofferdamTool(env, "ops", LOCKKEEPER_CONNECTION, "brief", {})
     ).rejects.toThrow(/not available to this bot/)
+    await expect(
+      callCofferdamTool(env, "ops", OPS_ZKPASSPORT_CONNECTION, "comment", {})
+    ).rejects.toThrow(/No ZKPassport watch tool/)
+    await expect(
+      callCofferdamTool(
+        env,
+        "security",
+        OPS_ZKPASSPORT_CONNECTION,
+        "zkpassport_watch",
+        {}
+      )
+    ).rejects.toThrow(/not available to this bot/)
+  })
+
+  it("files only the watch issue, with the ops label alone", () => {
+    const title = "ZKPassport watch: ZKPassport moved, verify on the Mac"
+    expect(opsIssueRefusal(title, ["ops"])).toBeNull()
+    expect(opsIssueRefusal("Renewals due", ["ops"])).toMatch(
+      /only the ZKPassport/
+    )
+    expect(opsIssueRefusal(title, ["ops", "security"])).toMatch(/no other/)
+    expect(opsIssueRefusal(title, ["ops", "dispatch"])).toMatch(/no other/)
+    expect(opsIssueRefusal(title, [])).toMatch(/no other/)
   })
 
   it("reads workspace Markdown only, and comments on ops issues only", () => {
@@ -1650,4 +1734,757 @@ describe("Ops bot", () => {
       bots: [{ bot: "Security", todayUsd: 1.23, dayBudgetUsd: 8 }],
     })
   })
+})
+
+describe("ZKPassport watch", () => {
+  const CERT_NOW =
+    "0x0ad5ebefadaac8b78af33db76722570bf215f3e32b7971d6ccedd6717de67ab1"
+  const CERT_BEFORE =
+    "0x103662fb872f5dba268c67fdc7600243b4741215d7442657539b4c39e461876c"
+  const CIRC_0_22 =
+    "0x0289526299c3d1afa2ad1113678fb426ed587156a1a4ba622023d81989728210"
+  const CIRC_0_23 =
+    "0x002ec7a7f7faa8aa6507eec1920a6b775114de2c5a9d9c608fce9223d5cc6321"
+  const RUST_HEAD = "924a40de0b33904466caa85b1bff5f41b4935da5"
+
+  /** The known-good set of 2026-11-17, as the workspace runbook holds it. */
+  const TODAY = {
+    verifiedAt: "2026-11-17",
+    verifiedWith: "cofferdam-app 5a97f1a",
+    certificates: { latest: CERT_NOW, valid: [CERT_NOW, CERT_BEFORE] },
+    circuits: {
+      pinned: { version: "0.22.0", root: CIRC_0_22 },
+      latest: { version: "0.23.0", root: CIRC_0_23 },
+    },
+    packages: { "@zkpassport/utils": "0.41.1", "@zkpassport/sdk": "0.21.0" },
+    core: {
+      pinned: "97576ab7f64787c8ab1405b0c77703ac90ae9f5a",
+      rustHead: RUST_HEAD,
+    },
+    license: null,
+  }
+  /** The set as it would have stood before 2026-11-16's move. */
+  const BEFORE = {
+    ...TODAY,
+    verifiedAt: "2026-11-15",
+    certificates: { latest: CERT_BEFORE, valid: [CERT_BEFORE] },
+    packages: { ...TODAY.packages, "@zkpassport/utils": "0.40.0" },
+  }
+  const doc = (set: unknown) =>
+    `# ZKPassport watch\n\nText.\n\n\`\`\`json zkpassport-known-good\n${JSON.stringify(set, null, 2)}\n\`\`\`\n\nMore text.\n`
+
+  /** ZKPassport's live state on 2026-11-17, as the endpoints answer it. */
+  interface Net {
+    certLatest: string
+    circLatest: string
+    valid: string[]
+    utils: string
+    sdk: string
+    rustHead: string
+    licence: string | null
+    githubLimited?: boolean
+    npmDown?: boolean
+    manifestsDown?: boolean
+    /** A by-version path naming another root than the version's own. */
+    byVersion?: Record<string, string>
+    doc?: string
+    openIssue?: {
+      number: number
+      title: string
+      body: string
+      comments: string[]
+    }
+    calls: { url: string; body?: string; auth?: string | null }[]
+  }
+  const live = (over: Partial<Net> = {}): Net => ({
+    certLatest: CERT_NOW,
+    circLatest: CIRC_0_23,
+    valid: [CERT_NOW, CERT_BEFORE, CIRC_0_22, CIRC_0_23],
+    utils: "0.41.1",
+    sdk: "0.21.0",
+    rustHead: RUST_HEAD,
+    licence: null,
+    calls: [],
+    ...over,
+  })
+  const manifests: Record<string, { version: string; root: string }> = {
+    [CIRC_0_22]: { version: "0.22.0", root: CIRC_0_22 },
+    [CIRC_0_23]: { version: "0.23.0", root: CIRC_0_23 },
+  }
+
+  function fakeFetch(net: Net) {
+    return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input instanceof Request ? input.url : input))
+      const headers = new Headers(init?.headers)
+      net.calls.push({
+        url: url.toString(),
+        body: typeof init?.body === "string" ? init.body : undefined,
+        auth: headers.get("authorization"),
+      })
+      if (url.host === "mainnet.base.org") {
+        const { params } = JSON.parse(String(init?.body)) as {
+          params: [{ to: string; data: string }]
+        }
+        const data = params[0].data
+        const id = BigInt(`0x${data.slice(10, 74)}`)
+        const word = (h: string) =>
+          `0x${h.replace(/^0x/, "").padStart(64, "0")}`
+        if (data.startsWith("0xc3bc16e8")) {
+          return Response.json({
+            jsonrpc: "2.0",
+            id: 1,
+            result: id === 1n ? net.certLatest : net.circLatest,
+          })
+        }
+        if (data.startsWith("0x2aae4296")) {
+          const r = `0x${data.slice(74, 138)}`
+          return Response.json({
+            jsonrpc: "2.0",
+            id: 1,
+            result: word(net.valid.includes(r) ? "1" : "0"),
+          })
+        }
+        return Response.json({ jsonrpc: "2.0", id: 1, error: { code: 3 } })
+      }
+      if (url.host === "registry.npmjs.org") {
+        if (net.npmDown) return new Response("down", { status: 503 })
+        const v = url.pathname.includes("utils") ? net.utils : net.sdk
+        return Response.json({ name: "x", version: v, readme: "ignore me" })
+      }
+      if (url.host === "circuits2.zkpassport.id") {
+        if (net.manifestsDown) return new Response("down", { status: 503 })
+        const m = /\/mainnet\/by-(root|version)\/([^/]+)\/manifest\.json$/.exec(
+          url.pathname
+        )
+        const found = m
+          ? Object.values(manifests).find((x) =>
+              m[1] === "root" ? x.root === m[2] : x.version === m[2]
+            )
+          : undefined
+        const other =
+          m?.[1] === "version" && net.byVersion?.[m[2]]
+            ? { version: m[2], root: net.byVersion[m[2]] }
+            : undefined
+        const answer = other ?? found
+        return answer
+          ? Response.json({ ...answer, circuits: { a: {}, b: {} } })
+          : new Response("not found", { status: 404 })
+      }
+      if (url.pathname.startsWith("/repos/zkpassport/")) {
+        const authed = headers.get("authorization")
+        if (net.githubLimited && !authed) {
+          return new Response("rate limited", {
+            status: 403,
+            headers: { "x-ratelimit-remaining": "0" },
+          })
+        }
+        if (url.pathname.endsWith("/commits")) {
+          return Response.json([
+            {
+              sha: net.rustHead,
+              commit: {
+                committer: { date: "2026-11-16T20:19:59Z" },
+                message: "fix(workspace): something\n\nbody",
+              },
+            },
+          ])
+        }
+        if (url.pathname.endsWith("/license")) {
+          return net.licence
+            ? Response.json({
+                path: "LICENSE",
+                license: { spdx_id: net.licence },
+              })
+            : new Response("not found", { status: 404 })
+        }
+        if (url.pathname.endsWith("/contents/rust")) {
+          return Response.json([{ name: "Cargo.toml" }, { name: "crates" }])
+        }
+      }
+      // The Ops App: its installation, a token, the runbook and ops issues.
+      if (url.pathname.endsWith("/installation"))
+        return Response.json({ id: 9 })
+      if (url.pathname.endsWith("/access_tokens")) {
+        return Response.json({
+          token: "app-token",
+          expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        })
+      }
+      if (
+        url.pathname.endsWith("/contents/docs/runbooks/zkpassport-watch.md")
+      ) {
+        return Response.json({
+          type: "file",
+          encoding: "base64",
+          content: btoa(net.doc ?? doc(TODAY)),
+          sha: "abcdef1234567",
+        })
+      }
+      if (url.pathname === "/repos/cofferdamxyz/cofferdam/issues") {
+        const issues = [
+          {
+            number: 14,
+            title: "Ops daily review - DO NOT CLOSE",
+            state: "open",
+            body: "",
+            html_url: "u",
+            labels: [{ name: "ops" }],
+            updated_at: "t",
+          },
+          ...(net.openIssue
+            ? [
+                {
+                  number: net.openIssue.number,
+                  title: net.openIssue.title,
+                  state: "open",
+                  body: net.openIssue.body,
+                  html_url: "u",
+                  labels: [{ name: "ops" }],
+                  updated_at: "t",
+                },
+              ]
+            : []),
+        ]
+        return Response.json(issues)
+      }
+      const one = /^\/repos\/cofferdamxyz\/cofferdam\/issues\/(\d+)$/.exec(
+        url.pathname
+      )
+      if (one) {
+        const n = Number(one[1])
+        return Response.json({
+          number: n,
+          title:
+            n === net.openIssue?.number
+              ? net.openIssue.title
+              : "Ops daily review - DO NOT CLOSE",
+          state: "open",
+          body: "",
+          html_url: "u",
+          labels: [{ name: "ops" }],
+          updated_at: "t",
+        })
+      }
+      if (
+        init?.method === "POST" &&
+        /\/issues\/\d+\/comments$/.test(url.pathname)
+      ) {
+        return Response.json({ html_url: "posted" })
+      }
+      const comments = /\/issues\/(\d+)\/comments$/.exec(url.pathname)
+      if (comments) {
+        return Response.json(
+          (net.openIssue?.comments ?? []).map((body) => ({
+            body,
+            created_at: "t",
+            html_url: "u",
+          }))
+        )
+      }
+      return new Response("unexpected", { status: 500 })
+    })
+  }
+
+  const known = (set: unknown) => {
+    const parsed = parseKnownGood(doc(set))
+    if (!parsed.ok) throw new Error(parsed.error)
+    return parsed.known
+  }
+
+  it("reads the known-good block, and refuses a malformed one", () => {
+    expect(known(TODAY).certificates.latest).toBe(CERT_NOW)
+    expect(parseKnownGood("# no block")).toMatchObject({ ok: false })
+    expect(
+      parseKnownGood(
+        doc({ ...TODAY, certificates: { latest: "0x12", valid: [] } })
+      )
+    ).toMatchObject({ ok: false, error: expect.stringMatching(/certificates/) })
+    expect(
+      parseKnownGood("```json zkpassport-known-good\n{nope\n```")
+    ).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/not valid JSON/),
+    })
+  })
+
+  it.skipIf(!existsSync(WORKSPACE_RUNBOOK))(
+    "matches the workspace runbook's known-good set",
+    () => {
+      const parsed = parseKnownGood(readFileSync(WORKSPACE_RUNBOOK, "utf8"))
+      if (!parsed.ok) throw new Error(parsed.error)
+      expect({ ...parsed.known, verifiedWith: "" }).toEqual({
+        ...known(TODAY),
+        verifiedWith: "",
+      })
+    }
+  )
+
+  it("reads the registry with the right calls, and every answer cut to its fields", async () => {
+    const net = live()
+    const state = await readLive({
+      fetch: fakeFetch(net) as unknown as typeof fetch,
+      known: known(TODAY),
+      now: Date.UTC(2026, 10, 17, 12),
+    })
+    expect(state.unread).toEqual([])
+    expect(state.certificates).toEqual({
+      latest: CERT_NOW,
+      valid: { [CERT_NOW]: true, [CERT_BEFORE]: true },
+    })
+    expect(state.circuits).toMatchObject({
+      latest: CIRC_0_23,
+      pinnedValid: true,
+      manifest: {
+        version: "0.23.0",
+        root: CIRC_0_23,
+        circuits: 2,
+        byVersionRoot: CIRC_0_23,
+      },
+    })
+    expect(state.packages).toEqual({
+      "@zkpassport/utils": "0.41.1",
+      "@zkpassport/sdk": "0.21.0",
+    })
+    expect(state.core.rustHead).toEqual({
+      sha: RUST_HEAD,
+      date: "2026-11-16T20:19:59Z",
+      title: "fix(workspace): something",
+    })
+    expect(state.license).toBeNull()
+    const rpc = net.calls.filter((c) =>
+      c.url.startsWith("https://mainnet.base.org")
+    )
+    const data = rpc.map((c) => JSON.parse(c.body!).params[0])
+    expect(
+      data.every((d) => d.to === "0x1D0000020038d6E40E1d98e09fA1bb3A7DAA8B70")
+    ).toBe(true)
+    expect(data.map((d) => d.data)).toContain(`0xc3bc16e8${"0".repeat(63)}1`)
+    expect(data.map((d) => d.data)).toContain(`0xc3bc16e8${"0".repeat(63)}2`)
+    const ts = Math.floor(Date.UTC(2026, 10, 17, 12) / 1000)
+      .toString(16)
+      .padStart(64, "0")
+    expect(data.map((d) => d.data)).toContain(
+      `0x2aae4296${"0".repeat(63)}1${CERT_BEFORE.slice(2)}${ts}`
+    )
+    // Fixed endpoints only.
+    const hosts = new Set(net.calls.map((c) => new URL(c.url).host))
+    expect([...hosts].sort()).toEqual([
+      "api.github.com",
+      "circuits2.zkpassport.id",
+      "mainnet.base.org",
+      "registry.npmjs.org",
+    ])
+  })
+
+  it("reads GitHub again with the Ops App's token only on a rate limit", async () => {
+    const net = live({ githubLimited: true })
+    const state = await readLive({
+      fetch: fakeFetch(net) as unknown as typeof fetch,
+      githubToken: async () => "app-token",
+    })
+    expect(state.unread).toEqual([])
+    expect(state.core.rustHead?.sha).toBe(RUST_HEAD)
+    const gh = net.calls.filter((c) => c.url.includes("/repos/zkpassport/"))
+    expect(gh.filter((c) => !c.auth).length).toBeGreaterThan(0)
+    expect(
+      gh.filter((c) => c.auth === "Bearer app-token").length
+    ).toBeGreaterThan(0)
+    // Without a token, a rate limit is an unread source, never a change.
+    const blind = await readLive({
+      fetch: fakeFetch(
+        live({ githubLimited: true })
+      ) as unknown as typeof fetch,
+      known: known(TODAY),
+    })
+    expect(blind.unread.join(" ")).toMatch(
+      /core rust\/ head: GitHub answered 403/
+    )
+    expect(blind.license).toBeUndefined()
+    expect(compare(known(TODAY), blind)).toEqual([])
+  })
+
+  it("reports no change against today's live values", async () => {
+    const state = await readLive({
+      fetch: fakeFetch(live()) as unknown as typeof fetch,
+      known: known(TODAY),
+    })
+    const report = await watchReport({
+      known: known(TODAY),
+      live: state,
+      openIssue: null,
+    })
+    expect(report).toMatchObject({ changed: false, summary: "No change." })
+  })
+
+  it("raises the issue for 2026-11-16's move: utils 0.40 to 0.41 and the certificates root", async () => {
+    const before = known(BEFORE)
+    const state = await readLive({
+      fetch: fakeFetch(live()) as unknown as typeof fetch,
+      known: before,
+    })
+    const changes = compare(before, state)
+    expect(changes.map((c) => [c.what, c.known, c.live])).toEqual([
+      [
+        "certificates root (latestRoot 1)",
+        "0x103662fb…876c",
+        "0x0ad5ebef…7ab1",
+      ],
+      ["npm @zkpassport/utils latest", "0.40.0", "0.41.1"],
+    ])
+    expect(changes[0].verify).toBe(
+      `cargo run --release --example core -- certroot <file> - on https://certificates.zkpassport.id/mainnet/${CERT_NOW}.json`
+    )
+    const report = await watchReport({
+      known: before,
+      docSha: "abcdef1234",
+      live: state,
+      openIssue: null,
+    })
+    if (!report.changed) throw new Error("expected a change")
+    expect(report.issue).toMatchObject({
+      action: "create_issue",
+      title: "ZKPassport watch: ZKPassport moved, verify on the Mac",
+      labels: ["ops"],
+    })
+    const issue = report.issue as {
+      title: string
+      body: string
+      labels: string[]
+    }
+    expect(opsIssueRefusal(issue.title, issue.labels)).toBeNull()
+    expect(protocolHeadingRefusal(issue.body)).toBeNull()
+    expect(issue.body).toMatch(
+      /\| certificates root \(latestRoot 1\) \| 0x103662fb…876c \| 0x0ad5ebef…7ab1 \|/
+    )
+    expect(issue.body).toMatch(
+      /\| npm @zkpassport\/utils latest \| 0\.40\.0 \| 0\.41\.1 \|/
+    )
+    expect(issue.body).toMatch(
+      /Verify on the Mac, in `cofferdam-app\/modules\/zk-prover\/rust`/
+    )
+    expect(issue.body).toMatch(/certroot <file> -/)
+    expect(issue.body).toMatch(/at abcdef1, verified 2026-11-15/)
+    const ids = await Promise.all(changes.map((c) => changeId(c)))
+    expect(ids.every((id) => /^[0-9a-f]{12}$/.test(id))).toBe(true)
+    expect(issue.body.trim().endsWith(`${WATCH_MARKER} ${ids.join(" ")}`)).toBe(
+      true
+    )
+    expect(watchMarkerRefusal(issue.body)).toBeNull()
+    expect([...filedIds([issue.body])]).toEqual(ids)
+
+    // Filed: the open watch issue carries the marker, so the watch is quiet.
+    const filed = await watchReport({
+      known: before,
+      live: state,
+      openIssue: {
+        number: 40,
+        title: issue.title,
+        body: issue.body,
+        comments: [],
+      },
+    })
+    expect(filed).toMatchObject({
+      changed: true,
+      issue: { action: "none", number: 40 },
+    })
+    // A further move on an open issue is a comment, which fits a comment.
+    const further = await watchReport({
+      known: before,
+      live: {
+        ...state,
+        packages: { ...state.packages, "@zkpassport/sdk": "0.22.0" },
+      },
+      openIssue: {
+        number: 40,
+        title: issue.title,
+        body: issue.body,
+        comments: [],
+      },
+    })
+    expect(further).toMatchObject({
+      changed: true,
+      issue: { action: "comment", number: 40 },
+    })
+    const comment = (further as { issue: { body: string } }).issue.body
+    expect(comment.length).toBeLessThan(2000)
+    expect(comment).toMatch(/@zkpassport\/sdk latest \| 0\.21\.0 \| 0\.22\.0/)
+    // Only what the issue does not carry yet.
+    expect(comment).not.toMatch(/certificates root/)
+    expect([...filedIds([comment])]).toEqual([
+      await changeId({ what: "npm @zkpassport/sdk latest", key: "0.22.0" }),
+    ])
+  })
+
+  it("never files again because a source went unread or a side read failed", async () => {
+    const before = known(BEFORE)
+    const day1 = await readLive({
+      fetch: fakeFetch(live()) as unknown as typeof fetch,
+      known: before,
+    })
+    const r1 = await watchReport({ known: before, live: day1, openIssue: null })
+    const body = (r1 as { issue: { body: string } }).issue.body
+    const open = {
+      number: 40,
+      title: "ZKPassport watch: x",
+      body,
+      comments: [],
+    }
+    // Day 2: npm is down and the circuits manifest unreadable.
+    const day2 = await readLive({
+      fetch: fakeFetch(
+        live({ npmDown: true, manifestsDown: true })
+      ) as unknown as typeof fetch,
+      known: before,
+    })
+    expect(day2.unread.join(" ")).toMatch(/npm @zkpassport\/utils/)
+    expect(day2.unread.join(" ")).toMatch(/circuits manifest/)
+    expect(
+      await watchReport({ known: before, live: day2, openIssue: open })
+    ).toMatchObject({ changed: true, issue: { action: "none", number: 40 } })
+    // A circuits move read with and without its manifest is the same change.
+    const moved = known({
+      ...TODAY,
+      circuits: {
+        ...TODAY.circuits,
+        latest: { version: "0.22.0", root: CIRC_0_22 },
+      },
+    })
+    const withManifest = compare(moved, day1)
+    const without = compare(moved, day2)
+    expect(withManifest[0].live).toBe("0.23.0 0x002ec7a7…6321")
+    expect(without[0].live).toBe("unknown version 0x002ec7a7…6321")
+    expect(await changeId(withManifest[0])).toBe(await changeId(without[0]))
+  })
+
+  it("fits a long move into one comment, then files the rest the next day", async () => {
+    const many = Array.from(
+      { length: 20 },
+      (_, i) => `0x${(i + 1).toString(16).padStart(2, "0").repeat(32)}`
+    )
+    const set = known({
+      ...TODAY,
+      certificates: { latest: CERT_NOW, valid: many },
+    })
+    const state = await readLive({
+      fetch: fakeFetch(live()) as unknown as typeof fetch,
+      known: set,
+    })
+    const open = {
+      number: 40,
+      title: "ZKPassport watch: x",
+      body: "",
+      comments: [] as string[],
+    }
+    const first = (await watchReport({
+      known: set,
+      live: state,
+      openIssue: open,
+    })) as {
+      changes: unknown[]
+      issue: { action: string; body: string; files: string[] }
+    }
+    expect(first.changes).toHaveLength(20)
+    expect(first.issue.action).toBe("comment")
+    expect(first.issue.body.length).toBeLessThanOrEqual(1900)
+    expect(watchMarkerRefusal(first.issue.body)).toBeNull()
+    expect(first.issue.files.length).toBeLessThan(20)
+    expect(first.issue.body).toMatch(/more change\(s\)/)
+    open.comments.push(first.issue.body)
+    const second = (await watchReport({
+      known: set,
+      live: state,
+      openIssue: open,
+    })) as {
+      issue: { action: string; files: string[] }
+    }
+    expect(second.issue.action).toBe("comment")
+    expect(
+      second.issue.files.some((id) => first.issue.files.includes(id))
+    ).toBe(false)
+  })
+
+  it("reports a by-version manifest that disagrees with the root it names", async () => {
+    const state = await readLive({
+      fetch: fakeFetch(
+        live({ byVersion: { "0.22.0": CIRC_0_23, "0.23.0": CIRC_0_22 } })
+      ) as unknown as typeof fetch,
+      known: known(TODAY),
+    })
+    expect(compare(known(TODAY), state).map((c) => c.what)).toEqual([
+      "circuits manifest by-version/0.23.0",
+      "pinned circuits manifest by-version/0.22.0",
+    ])
+  })
+
+  it("reports a pinned root that lapsed, a new circuits version, a new core and a licence", async () => {
+    const state = await readLive({
+      fetch: fakeFetch(
+        live({
+          circLatest: CIRC_0_22,
+          valid: [CERT_NOW],
+          rustHead: "1045a75e3d00000000000000000000000000beef",
+          licence: "Apache-2.0",
+        })
+      ) as unknown as typeof fetch,
+      known: known({
+        ...TODAY,
+        circuits: {
+          ...TODAY.circuits,
+          latest: { version: "0.21.1", root: `0x${"11".repeat(32)}` },
+        },
+      }),
+    })
+    const what = compare(
+      known({
+        ...TODAY,
+        circuits: {
+          ...TODAY.circuits,
+          latest: { version: "0.21.1", root: `0x${"11".repeat(32)}` },
+        },
+      }),
+      state
+    ).map((c) => `${c.what}: ${c.known} -> ${c.live}`)
+    expect(what).toEqual([
+      "certificates root no longer valid (isRootValid 1): 0x103662fb…876c valid -> 0x103662fb…876c invalid",
+      "circuits root (latestRoot 2): 0.21.1 0x11111111…1111 -> 0.22.0 0x02895262…8210",
+      "pinned circuits root no longer valid (isRootValid 2): 0.22.0 valid -> 0.22.0 invalid",
+      "zkpassport/zkpassport-packages latest commit touching rust/: 924a40de0b -> 1045a75e3d (2026-11-16)",
+      "zkpassport/zkpassport-packages licence: none -> Apache-2.0 (LICENSE)",
+    ])
+  })
+
+  it("answers through the Ops bot's connection, reading the runbook and the open issue", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 })
+    const app = {
+      OPS_GITHUB_APP_ID: "3",
+      OPS_GITHUB_APP_PRIVATE_KEY: privateKey.export({
+        type: "pkcs8",
+        format: "pem",
+      }) as string,
+    }
+    const call = async (net: Net, name = "zkpassport_watch") => {
+      vi.stubGlobal("fetch", fakeFetch(net))
+      try {
+        const out = (await callCofferdamTool(
+          app,
+          "ops",
+          OPS_ZKPASSPORT_CONNECTION,
+          name,
+          {}
+        )) as { content: { text: string }[] }
+        return JSON.parse(out.content[0].text)
+      } finally {
+        vi.unstubAllGlobals()
+        resetGitHubAppCache()
+      }
+    }
+    expect(await call(live())).toMatchObject({
+      changed: false,
+      knownGood: {
+        doc: "docs/runbooks/zkpassport-watch.md",
+        sha: "abcdef1234567",
+      },
+    })
+    const drift = await call(live({ doc: doc(BEFORE) }))
+    expect(drift).toMatchObject({
+      changed: true,
+      issue: { action: "create_issue" },
+    })
+    const onIssue = await call(
+      live({
+        doc: doc(BEFORE),
+        openIssue: {
+          number: 41,
+          title: drift.issue.title,
+          body: drift.issue.body,
+          comments: [],
+        },
+      })
+    )
+    expect(onIssue).toMatchObject({ issue: { action: "none", number: 41 } })
+    await expect(call(live({ doc: "# nothing here" }))).rejects.toThrow(
+      /No ```json zkpassport-known-good block/
+    )
+    const raw = await call(live(), "zkpassport_live")
+    expect(raw.certificates.latest).toBe(CERT_NOW)
+    expect(JSON.stringify(raw)).not.toMatch(/ignore me/)
+  })
+
+  it("refuses a second watch issue while one is open", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 })
+    const app = {
+      OPS_GITHUB_APP_ID: "3",
+      OPS_GITHUB_APP_PRIVATE_KEY: privateKey.export({
+        type: "pkcs8",
+        format: "pem",
+      }) as string,
+    }
+    vi.stubGlobal(
+      "fetch",
+      fakeFetch(
+        live({
+          openIssue: {
+            number: 41,
+            title: "ZKPassport watch: moved",
+            body: "",
+            comments: [],
+          },
+        })
+      )
+    )
+    try {
+      await expect(
+        callCofferdamTool(app, "ops", OPS_GITHUB_CONNECTION, "create_issue", {
+          title: "ZKPassport watch: ZKPassport moved, verify on the Mac",
+          body: "Moved.\n\nzkpassport-watch: 0123456789ab",
+          labels: ["ops"],
+        })
+      ).rejects.toThrow(/#41 is open; comment on it instead/)
+      // Without the watch's marker line, nothing is filed or posted there.
+      await expect(
+        callCofferdamTool(app, "ops", OPS_GITHUB_CONNECTION, "create_issue", {
+          title: "ZKPassport watch: anything",
+          body: "Something else entirely.",
+          labels: ["ops"],
+        })
+      ).rejects.toThrow(/ends with the line zkpassport_watch drafted/)
+      const comment = (number: number, body: string) =>
+        callCofferdamTool(app, "ops", OPS_GITHUB_CONNECTION, "comment", {
+          number,
+          body,
+        })
+      await expect(comment(41, "Looks fine to me.")).rejects.toThrow(
+        /Not commented: .*ends with the line zkpassport_watch drafted/
+      )
+      await expect(
+        comment(41, "Moved again.\n\nzkpassport-watch: 0123456789ab")
+      ).resolves.toBeDefined()
+      // The standing ops issue takes the daily note as before.
+      await expect(comment(14, "Spend is fine.")).resolves.toBeDefined()
+    } finally {
+      vi.unstubAllGlobals()
+      resetGitHubAppCache()
+    }
+  })
+
+  // The dry run against ZKPassport's live endpoints: ZKPASSPORT_LIVE=1 pnpm test
+  it.runIf(
+    process.env.ZKPASSPORT_LIVE === "1" && existsSync(WORKSPACE_RUNBOOK)
+  )(
+    "dry run: today's live values against the workspace runbook report no change",
+    async () => {
+      const parsed = parseKnownGood(readFileSync(WORKSPACE_RUNBOOK, "utf8"))
+      if (!parsed.ok) throw new Error(parsed.error)
+      const state = await readLive({ known: parsed.known })
+      const report = await watchReport({
+        known: parsed.known,
+        live: state,
+        openIssue: null,
+      })
+      console.log(JSON.stringify({ state, report }, null, 2))
+      expect(state.unread).toEqual([])
+      expect(report.changed).toBe(false)
+    },
+    60_000
+  )
 })

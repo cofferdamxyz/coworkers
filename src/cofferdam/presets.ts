@@ -27,6 +27,7 @@ import {
   OPS_ROUTINE,
   OPS_RULES,
   OPS_TOOL_RULES,
+  OPS_ZKPASSPORT_ROUTINE,
   opsPolicy,
 } from "./ops"
 import {
@@ -48,6 +49,8 @@ export interface PresetDef {
   toolRules: Record<string, RulePolicy>
   proactive: Partial<ProactiveSettings>
   routine: Omit<Routine, "id">
+  /** Further routines of the preset, each synced on its own. */
+  extraRoutines?: Omit<Routine, "id">[]
   /** The policy section, appended last to every turn's instructions. */
   policy: () => string
 }
@@ -78,6 +81,7 @@ export const PRESET_DEFS: Record<Preset, PresetDef> = {
     toolRules: OPS_TOOL_RULES,
     proactive: OPS_PROACTIVE,
     routine: OPS_ROUTINE,
+    extraRoutines: [OPS_ZKPASSPORT_ROUTINE],
     policy: opsPolicy,
   },
 }
@@ -94,6 +98,23 @@ export function routineKey(routine: Omit<Routine, "id">) {
     routine.onlyNew === true,
     routine.prompt,
   ])
+}
+
+/**
+ * A preset's routines with the storage key each one's applied routineKey is
+ * kept under: the first keeps the key it always had, so bots provisioned
+ * before extra routines existed do not sync it again. An extra routine's key
+ * is its name: renaming one in code leaves bots with the old routine and adds
+ * the new one, so delete the old one in the bot's settings after such a rename.
+ */
+export function presetRoutines(def: PresetDef) {
+  return [
+    { routine: def.routine, storageKey: "cofferdam_routine" },
+    ...(def.extraRoutines ?? []).map((routine) => ({
+      routine,
+      storageKey: `cofferdam_routine:${routine.name}`,
+    })),
+  ]
 }
 
 export function isPreset(value: unknown): value is Preset {

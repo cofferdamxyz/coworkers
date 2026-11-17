@@ -419,6 +419,14 @@ domains: terminated": the version is live at 100% and `bots.cofferdam.xyz`,
 attached since the first deploy, still answers through Access. Tests 250
 passed on that commit.
 
+**Built 2026-11-17, not deployed:** the Ops bot's ZKPassport watch (The Ops
+bot, below; workspace `docs/runbooks/zkpassport-watch.md`). Tests 264 passed;
+a dry run against ZKPassport's live endpoints that day reported no change
+(`ZKPASSPORT_LIVE=1 pnpm test`). Before the deploy, push the workspace `main`
+that carries the runbook: the watch reads its known-good set from
+`cofferdamxyz/cofferdam` `main` and fails until it is there. The existing Ops
+bot gets the routine on the first hub start after the deploy.
+
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
 came back with Lockkeeper's branches, pull requests, the Dependabot queue and
@@ -820,15 +828,28 @@ sign-in after the deploy that carries it, never by hand:
   spend, decision 0045); the bots'
   own Claude spend (`bots_spend`, the hub's gateway sync, against $250 a month
   and $8 a day per bot); workspace Markdown (`read_doc`); issues of
-  `cofferdamxyz/cofferdam`. No Lockkeeper, no billing credential.
+  `cofferdamxyz/cofferdam`; ZKPassport's live state (`zkpassport_live`,
+  `zkpassport_watch`: Base's root registry through `mainnet.base.org`, npm,
+  GitHub's public API and `circuits2.zkpassport.id`, compared with the
+  known-good set in the workspace `docs/runbooks/zkpassport-watch.md`). No
+  Lockkeeper, no billing credential, no ZKPassport code.
 - **Writes, each on an approval card, never in a background turn:** a comment
-  on an `ops` issue (the daily note, the Monday checklist).
-- **Never:** labels, filing or closing issues, `dispatch`, company state (the
-  OS's), a payment, a subscription or a credential, a shell, scripts, the
-  browser, email, managing bots.
-- **Routine:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only.
-- Its connections (`cofferdam-ops-github`, `cofferdam-ops-spend`) are listed
-  only to it.
+  on an `ops` issue (the daily note, the Monday checklist, an update on the
+  watch issue); the ZKPassport watch issue itself (`create_issue`, title
+  `ZKPassport watch: …`, the `ops` label alone, refused while one is open);
+  the watch issue takes only text ending with the watch's
+  `zkpassport-watch: <id> …` line.
+- **Never:** labels, filing any other issue, closing issues, `dispatch`,
+  company state (the OS's), a payment, a subscription or a credential, a
+  shell, scripts, the browser, email, managing bots.
+- **Routines:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only;
+  "ZKPassport watch", every day 07:00 São Paulo, read-only (a move is told in
+  chat; the issue waits for the founder).
+- Its connections (`cofferdam-ops-github`, `cofferdam-ops-spend`,
+  `cofferdam-ops-zkpassport`) are listed only to it. The watch needs no new
+  secret or App permission: it reads the runbook with the Ops App's Contents
+  read-only, files with its Issues write, and reads ZKPassport's public data
+  without a token (the Ops App's token only after a GitHub rate limit).
 - **Planned (workspace runbook `agentic-loop-completion.md`, joint 10, ruled
   2026-11-04):** a daily DevOps report from Cofferdam OS (expiring credentials,
   Worker health and deploys, D1, Hyperdrive and PlanetScale), arriving like the
