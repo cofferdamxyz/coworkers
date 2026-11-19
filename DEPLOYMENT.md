@@ -419,13 +419,16 @@ domains: terminated": the version is live at 100% and `bots.cofferdam.xyz`,
 attached since the first deploy, still answers through Access. Tests 250
 passed on that commit.
 
-**Built 2026-11-17, not deployed:** the Ops bot's ZKPassport watch (The Ops
-bot, below; workspace `docs/runbooks/zkpassport-watch.md`). Tests 264 passed;
-a dry run against ZKPassport's live endpoints that day reported no change
-(`ZKPASSPORT_LIVE=1 pnpm test`). Before the deploy, push the workspace `main`
-that carries the runbook: the watch reads its known-good set from
-`cofferdamxyz/cofferdam` `main` and fails until it is there. The existing Ops
-bot gets the routine on the first hub start after the deploy.
+**Deployed 2026-11-19 15:55 UTC** as `be05ccf9` from `main` at `4b11416`: the
+Ops bot's ZKPassport watch (The Ops bot, below; workspace
+`docs/runbooks/zkpassport-watch.md`, on the workspace `main` since `0da7da5`,
+pushed before the deploy). Tests 264 passed on that commit; a dry run against
+ZKPassport's live endpoints on 2026-11-17 reported no change
+(`ZKPASSPORT_LIVE=1 pnpm test`). The upload took 97 s. A first try the evening
+before hung in `pnpm dlx wrangler secret list` on a half-downloaded wrangler
+in pnpm's dlx cache (`@cloudflare/workerd-darwin-arm64` missing, ProtonVPN
+up): stop it, delete `~/Library/Caches/pnpm/dlx/<hash>` and run again. The
+existing Ops bot gets the routine on the first hub start after the deploy.
 
 **Verified 2026-11-03 22:09 UTC:** the founder signed in through Google, the
 hub created the Engineering bot on first sign-in, and "What is in flight?"
