@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import {
   CodeHighlighted,
   ShikiProvider,
@@ -88,9 +89,30 @@ function prepare(code: string, lang?: string) {
   return { code, lang }
 }
 
+/** How long code has to stay the same before it is highlighted. */
+const SETTLE_MS = 250
+
+/**
+ * Whether `code` has stopped changing. Code that is there from the start
+ * counts as settled; code still being written is not, until it rests.
+ */
+function useSettled(code: string) {
+  const [settled, setSettled] = useState(code)
+  useEffect(() => {
+    if (code === settled) return
+    const timer = setTimeout(() => setSettled(code), SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [code, settled])
+  return code === settled
+}
+
 /**
  * Syntax-highlighted code in the app's mono font. Unknown languages render
  * as plain mono text. Long lines wrap rather than scroll sideways.
+ *
+ * A block a bot is still writing stays plain until it rests: highlighting
+ * runs over the whole block, so doing it on every streamed chunk costs more
+ * with each line and stalls the thread on a phone.
  */
 export function CodeBlock({
   code,
@@ -104,9 +126,10 @@ export function CodeBlock({
   const prepared = prepare(code, lang)
   const known =
     prepared.lang && LANGUAGES.includes(normalizeLanguage(prepared.lang)!)
+  const settled = useSettled(code)
   return (
     <div className={`overflow-auto ${className}`}>
-      {known ? (
+      {known && settled ? (
         <CodeHighlighted
           code={prepared.code}
           lang={prepared.lang!}
