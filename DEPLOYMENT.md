@@ -12,7 +12,7 @@ own terminal, never in this file, a chat or a command argument.
 |---|---|
 | Worker | `coworkers` in the Cofferdam Inc. account (from the workspace `.envrc`; no account id in this repository) |
 | Host | `bots.cofferdam.xyz`, a Workers custom domain; no `workers.dev` hostname, no preview URLs |
-| Upstream pin | `fayazara/coworkers@40e1a9fcb923b5182248e907648383ca0273ec53` (2026-11-02) |
+| Upstream pin | `fayazara/coworkers@8cc548bdb86c0a68b25f8b4629db2c4f5c3f3352` (2026-11-13, merged 2026-11-19), with `1d68ff6` (the Google integration's removal) reverted |
 | Durable Objects | `UserHub`, `BotAgent`, `AppLive`, `OAuthStore`, `EmailDirectory` (SQLite), created by `cf deploy` from the Worker's exports |
 | Other bindings | `AI` (Workers AI and AI Gateway), `BROWSER` (Browser Run), `LOADER` (Dynamic Workers), `SEND_EMAIL` (unused: email is off) |
 | Models | Claude through the bots' own AI Gateway, `cofferdam-coworkers`: `anthropic/claude-sonnet-5.5` for conversations, `anthropic/claude-haiku-5.5` for routines, check-ins and webhooks; no Workers AI fallback |

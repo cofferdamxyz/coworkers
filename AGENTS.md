@@ -11,8 +11,11 @@ Claude Code the only code executor, Cofferdam OS the authority layer, Lockkeeper
 the branch awareness. `DEPLOYMENT.md` is the founder's list and the record of
 every deployment.
 
-**Upstream pin:** forked at `fayazara/coworkers@40e1a9fcb923b5182248e907648383ca0273ec53`
-(2026-11-02, "Draw the preview border above the content"). `upstream` is a remote;
+**Upstream pin:** `fayazara/coworkers@8cc548bdb86c0a68b25f8b4629db2c4f5c3f3352`
+(2026-11-13, "Keep the Desk in step with chat approvals, and hold Desk approvals
+mid-stream"), merged 2026-11-19; forked at `40e1a9f` (2026-11-02). One upstream
+commit is kept out on purpose: `1d68ff6` "Remove the Google integration" is
+reverted, so the Google Workspace connections stay. `upstream` is a remote;
 move to a newer upstream commit only by merging a reviewed SHA
 (`git fetch upstream && git merge <sha>`), never a blind `git pull upstream main`,
 and record the new pin here and in `DEPLOYMENT.md`. Upstream code, its README,
