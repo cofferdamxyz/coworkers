@@ -475,7 +475,7 @@ export const CERT_RENEW_COMMAND = "scripts/xmtp/tls-renew.sh"
 const CERTIFICATE_TOOL_DEFS: ToolDef[] = [
   {
     name: "xmtp_certificate",
-    description: `The XMTP backend's TLS certificate as deployed (xmtp.cofferdam.xyz, served by the backend's container; Let's Encrypt, short-lived): its expiry, days left, names, and the action: none, renew (under ${CERT_RENEW_DAYS} days), urgent (${CERT_URGENT_DAYS} days or fewer), not_issued, or unreadable. Never the certificate or its key. Reads only.`,
+    description: `The XMTP backend's TLS certificate as deployed (xmtp.cofferdam.xyz, served by the backend's container; Let's Encrypt, short-lived, renewed by Caddy itself unless an override pair is set): its source, expiry, days left, names, and the action: none, renew (under ${CERT_RENEW_DAYS} days), urgent (${CERT_URGENT_DAYS} days or fewer), staging (a test certificate phones do not trust), not_issued, or unreadable. Never the certificate or its key. Reads only.`,
     inputSchema: { type: "object", properties: {} },
     readOnly: true,
   },
@@ -1566,7 +1566,13 @@ export function certificateBound(env: CofferdamEnv) {
   return certificateBinding(env) !== null
 }
 
-type CertificateAction = "none" | "renew" | "urgent" | "not_issued" | "unreadable"
+type CertificateAction =
+  | "none"
+  | "renew"
+  | "urgent"
+  | "staging"
+  | "not_issued"
+  | "unreadable"
 
 /**
  * The backend's answer cut to its listed fields, with the action to take.
@@ -1602,23 +1608,37 @@ export function certificateReport(answer: unknown) {
         .filter((n) => /^[a-z0-9.*-]{1,253}$/i.test(n))
         .slice(0, 10)
     : []
+  const source =
+    a.source === "acme" || a.source === "override" ? a.source : undefined
+  // Caddy renews by itself (source acme): under 21 days means renewal has been
+  // failing. The override pair, or a staging certificate, is renewed by hand.
   const action: CertificateAction =
-    daysLeft <= CERT_URGENT_DAYS
-      ? "urgent"
-      : daysLeft < CERT_RENEW_DAYS
-        ? "renew"
-        : "none"
+    a.staging === true
+      ? "staging"
+      : daysLeft <= CERT_URGENT_DAYS
+        ? "urgent"
+        : daysLeft < CERT_RENEW_DAYS
+          ? "renew"
+          : "none"
   return {
     action,
+    ...(source ? { source } : {}),
     notAfter,
     notBefore: iso(a.notBefore),
     daysLeft,
     dnsNames,
-    ...(action === "none"
-      ? {}
-      : {
-          renew: `The founder runs ${CERT_RENEW_COMMAND} from the workspace on the Mac; the container picks the new certificate up within a minute.`,
-        }),
+    ...(action === "staging"
+      ? {
+          note: "A certificate from Let's Encrypt's staging CA, which phones do not trust: once issuance through Spectrum is proven, the founder sets XMTP_ACME_CA to production in the backend's wrangler.jsonc and deploys.",
+        }
+      : action === "none"
+        ? {}
+        : {
+            renew:
+              source === "acme"
+                ? `Caddy renews this certificate itself, so under ${CERT_RENEW_DAYS} days left means its renewal has been failing: check the backend's container on the Mac. The emergency path is ${CERT_RENEW_COMMAND} from the workspace, which sets the override pair.`
+                : `The founder runs ${CERT_RENEW_COMMAND} from the workspace on the Mac; the container picks the new certificate up within a minute.`,
+          }),
     checkedAt,
   }
 }

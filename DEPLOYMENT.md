@@ -838,8 +838,9 @@ sign-in after the deploy that carries it, never by hand:
   XMTP backend's TLS certificate as deployed (`xmtp_certificate`, over the
   service binding `XMTP_CERTIFICATE` to the `cofferdam-xmtp-backend` Worker's
   `CertificateStatus` entrypoint: its expiry, days left and names, never the
-  certificate or its key; the action `renew` under 21 days, `urgent` at 7 or
-  fewer). No Lockkeeper, no billing credential, no ZKPassport code.
+  certificate or its key; Caddy renews it itself, so the action `renew` under
+  21 days, `urgent` at 7 or fewer, means its renewal is failing; `staging` for a
+  test certificate phones do not trust). No Lockkeeper, no billing credential, no ZKPassport code.
 - **Writes, each on an approval card, never in a background turn:** a comment
   on an `ops` issue (the daily note, the Monday checklist, an update on the
   watch issue); the ZKPassport watch issue itself (`create_issue`, title
@@ -850,8 +851,8 @@ sign-in after the deploy that carries it, never by hand:
   company state (the OS's), a payment, a subscription or a credential, a
   shell, scripts, the browser, email, managing bots.
 - **Routines:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only
-  (it calls `xmtp_certificate` and names a certificate due for renewal in
-  every check-in until the founder runs `scripts/xmtp/tls-renew.sh`);
+  (it calls `xmtp_certificate` and names a certificate under 21 days left in
+  every check-in until it is renewed);
   "ZKPassport watch", every day 07:00 São Paulo, read-only (a move is told in
   chat; the issue waits for the founder).
 - Its connections (`cofferdam-ops-github`, `cofferdam-ops-spend`,

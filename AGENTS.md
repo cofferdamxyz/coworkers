@@ -56,7 +56,8 @@ and the rest of this file (below the line) is upstream's own guide.
   deployed (`xmtp_certificate`, over the service binding `XMTP_CERTIFICATE` to
   the `cofferdam-xmtp-backend` Worker's `CertificateStatus` entrypoint: dates
   and names only, `certificateReport` cuts the answer and names the action,
-  `renew` under `CERT_RENEW_DAYS` (21), `urgent` at `CERT_URGENT_DAYS` (7);
+  `renew` under `CERT_RENEW_DAYS` (21), `urgent` at `CERT_URGENT_DAYS` (7), `staging`
+  for a test certificate; Caddy renews it itself, so a reminder means renewal is failing;
   checked in the weekday check-in); no Lockkeeper, no billing credential (Cofferdam OS stays
   the meter), and never ZKPassport's code. A preset's further routines
   (`extraRoutines`) sync each under its own key (`presetRoutines`). The

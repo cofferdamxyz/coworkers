@@ -1649,6 +1649,18 @@ describe("Ops bot", () => {
     expect(at(7)).toBe("urgent")
     expect(at(-1)).toBe("urgent")
     expect(certificateReport({ configured: false }).action).toBe("not_issued")
+    const acme = (daysLeft: number, staging = false) =>
+      certificateReport({
+        configured: true,
+        source: "acme",
+        staging,
+        notAfter: "2027-02-17T00:00:00.000Z",
+        daysLeft,
+      }) as Record<string, unknown>
+    expect(acme(60, true).action).toBe("staging")
+    expect(acme(60).source).toBe("acme")
+    expect(acme(10).renew).toMatch(/renewal has been failing/)
+    expect(acme(10).renew).toContain(CERT_RENEW_COMMAND)
     expect(certificateReport({ configured: true, error: "certificate: x" }).action).toBe("unreadable")
     expect(certificateReport("nonsense").action).toBe("unreadable")
     expect(certificateReport({ configured: true, notAfter: "x", daysLeft: 3 }).action).toBe("unreadable")
