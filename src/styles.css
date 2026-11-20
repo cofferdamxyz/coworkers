@@ -1228,6 +1228,37 @@
   pointer-events: none;
 }
 
+/*
+ * One message of a chat. The padding, taken back by the margin, leaves room
+ * inside the row for what a message draws past its own edges (a row of
+ * products out to the gutters, a focus ring, the glow of a linked message),
+ * since skipping a row also clips it to its box.
+ */
+.thread-row {
+  margin: -10px -16px;
+  padding: 10px 16px;
+}
+
+@media (min-width: 768px) {
+  .thread-row {
+    margin-inline: -24px;
+    padding-inline: 24px;
+  }
+}
+
+/*
+ * Long threads: rows off screen skip style, layout and paint, and stay in
+ * find-in-page and the accessibility tree. A row keeps the height it last
+ * had; one never shown yet takes a guess. Only where the browser holds the
+ * view still (scroll anchoring) while rows above it take their real height.
+ */
+@supports (overflow-anchor: auto) {
+  .thread-row[data-skip] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 150px;
+  }
+}
+
 /* New messages rise in; history already on screen does not replay. */
 .msg-enter {
   transition:

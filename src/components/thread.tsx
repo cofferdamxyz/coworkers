@@ -1,5 +1,7 @@
 import {
   Fragment,
+  memo,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -233,7 +235,12 @@ const PROSE_COMPONENTS: Components = {
 
 const REMARK_PLUGINS = [remarkGfm]
 
-export function Prose({ text }: { text: string }) {
+/**
+ * Memoised: parsing Markdown is the costly part of a message, and a reply
+ * being written re-renders many times a second with only its last text
+ * growing.
+ */
+export const Prose = memo(function Prose({ text }: { text: string }) {
   return (
     <div className={PROSE}>
       <Markdown
@@ -245,7 +252,7 @@ export function Prose({ text }: { text: string }) {
       </Markdown>
     </div>
   )
-}
+})
 
 function SystemEvent({ children }: { children: React.ReactNode }) {
   return <p className="py-1 text-center text-sm text-kumo-subtle">{children}</p>
@@ -737,22 +744,7 @@ function SecretCard({
   )
 }
 
-function AssistantMessage({
-  blocks,
-  live,
-  startedAt,
-  durationMs,
-  botId,
-  latestComputerKey,
-  getLiveView,
-  getBrowserFrame,
-  navigateBrowser,
-  readFile,
-  onApproval,
-  onProvideSecret,
-  onAnswerChoice,
-  onPick,
-}: {
+interface AssistantMessageProps {
   blocks: Block[]
   /** This reply is still being written. */
   live: boolean
@@ -769,7 +761,24 @@ function AssistantMessage({
   onApproval?: OnApproval
   onProvideSecret?: OnProvideSecret
   onAnswerChoice?: OnAnswerChoice
-}) {
+}
+
+const AssistantMessage = memo(function AssistantMessage({
+  blocks,
+  live,
+  startedAt,
+  durationMs,
+  botId,
+  latestComputerKey,
+  getLiveView,
+  getBrowserFrame,
+  navigateBrowser,
+  readFile,
+  onApproval,
+  onProvideSecret,
+  onAnswerChoice,
+  onPick,
+}: AssistantMessageProps) {
   const { work, shown, replyKey } = toTurn(blocks)
   // While the bot works, the status line trails the turn and steps aside
   // whenever it is writing. Once the reply is in, the steps sit above it.
@@ -893,9 +902,13 @@ function AssistantMessage({
         )
     }
   }
-}
+})
 
-function UserMessage({ message }: { message: UIMessage }) {
+const UserMessage = memo(function UserMessage({
+  message,
+}: {
+  message: UIMessage
+}) {
   const origin = originOf(message)
   const text = messageText(message)
 
@@ -1002,7 +1015,7 @@ function UserMessage({ message }: { message: UIMessage }) {
       )}
     </div>
   )
-}
+})
 
 interface Row {
   message: UIMessage
@@ -1010,6 +1023,46 @@ interface Row {
   /** When the turn started, for time dividers. Older messages have none. */
   at?: number
   durationMs?: number
+}
+
+const NO_BLOCKS: Block[] = []
+
+/**
+ * Blocks per message object. The chat store publishes a new array on every
+ * streamed chunk but replaces only the message being written, so every other
+ * message keeps its blocks, and with them the props its row is memoised on.
+ */
+const blocksCache = new WeakMap<
+  UIMessage,
+  { background: boolean; blocks: Block[] }
+>()
+
+function blocksOf(message: UIMessage, background: boolean) {
+  const cached = blocksCache.get(message)
+  if (cached?.background === background) return cached.blocks
+  let blocks = toBlocks(message)
+  if (background) {
+    // Only the bot's final message counts in background work; drop any
+    // narration it wrote between tool calls.
+    const last = blocks.findLast((b) => b.kind === "text")
+    blocks = blocks.filter((b) => b.kind !== "text" || b === last)
+  }
+  blocksCache.set(message, { background, blocks })
+  return blocks
+}
+
+/**
+ * The newest `fn` behind a function that never changes, so a handler made
+ * anew on each render (the chat hook returns a new object every time) does
+ * not re-render every memoised message. Absent while `fn` is.
+ */
+function useStable<A extends unknown[], R>(
+  fn: ((...args: A) => R) | undefined
+) {
+  const latest = useRef(fn)
+  latest.current = fn
+  const stable = useCallback((...args: A) => latest.current?.(...args) as R, [])
+  return fn ? stable : undefined
 }
 
 function isQuietPrefix(message: UIMessage) {
@@ -1051,6 +1104,76 @@ function taskAnchor(message: UIMessage) {
   return task ? `task-${task.id}` : undefined
 }
 
+/**
+ * The newest rows are always laid out, so the thread opens and follows its
+ * bottom on real heights; the rows above them are skipped while off screen.
+ */
+const ROWS_KEPT_RENDERED = 6
+
+interface MessageRowProps extends Omit<AssistantMessageProps, "blocks"> {
+  message: UIMessage
+  blocks: Block[]
+  /** The "New" line goes above this message. */
+  unread: boolean
+  /** Arrived while the thread was open, so it animates in. */
+  entering: boolean
+  /** Far enough from the bottom to skip rendering while off screen. */
+  skippable: boolean
+  /** A time divider goes above it. */
+  divider: boolean
+}
+
+/**
+ * One message. Memoised, with every prop either a primitive or an object
+ * that stays the same while the message does: a streamed chunk re-renders
+ * the reply being written and nothing above it.
+ */
+const MessageRow = memo(function MessageRow({
+  message,
+  blocks,
+  unread,
+  entering,
+  skippable,
+  divider,
+  startedAt,
+  ...assistant
+}: MessageRowProps) {
+  return (
+    <>
+      {unread ? (
+        <div
+          className="flex items-center gap-3 text-xs font-medium text-kumo-danger"
+          role="separator"
+          aria-label="New messages"
+        >
+          <span className="h-px flex-1 bg-kumo-danger/30" />
+          New
+          <span className="h-px flex-1 bg-kumo-danger/30" />
+        </div>
+      ) : null}
+      <div className="thread-row" data-skip={skippable ? "" : undefined}>
+        <div
+          // Pipeline runs link here: /bots/<id>#task-<taskId>.
+          id={taskAnchor(message)}
+          className={`flex scroll-mt-6 flex-col gap-3 ${entering ? "msg-enter" : ""}`}
+          data-from={message.role === "user" ? "user" : "bot"}
+        >
+          {divider && startedAt ? <TimeDivider at={startedAt} /> : null}
+          {message.role === "user" ? (
+            <UserMessage message={message} />
+          ) : (
+            <AssistantMessage
+              blocks={blocks}
+              startedAt={startedAt}
+              {...assistant}
+            />
+          )}
+        </div>
+      </div>
+    </>
+  )
+})
+
 export function Thread({
   bot,
   messages,
@@ -1080,7 +1203,10 @@ export function Thread({
 
   const hydrated = useHydrated()
   // Absent on the server render and until the chat is live.
-  const pick = useContext(BotContext)?.send
+  const pick = useStable(useContext(BotContext)?.send)
+  const approve = useStable(onApproval)
+  const provideSecret = useStable(onProvideSecret)
+  const answerChoice = useStable(onAnswerChoice)
   const rendered = useMemo(() => {
     const rows: Row[] = []
     let background = false
@@ -1091,7 +1217,7 @@ export function Thread({
         background = meta.background === true
         turnAt = meta.at
         if (meta.origin?.kind === "check-in") continue
-        rows.push({ message, blocks: [], at: meta.at })
+        rows.push({ message, blocks: NO_BLOCKS, at: meta.at })
         continue
       }
       // A background reply of NO_UPDATE (or its first streamed characters)
@@ -1099,28 +1225,25 @@ export function Thread({
       if (background && (isQuietReply(message) || isQuietPrefix(message))) {
         continue
       }
-      let blocks = toBlocks(message)
-      if (background) {
-        // Only the bot's final message counts in background work; drop any
-        // narration it wrote between tool calls.
-        const last = blocks.findLast((b) => b.kind === "text")
-        blocks = blocks.filter((b) => b.kind !== "text" || b === last)
-      }
       rows.push({
         message,
-        blocks,
+        blocks: blocksOf(message, background),
         at: meta.at ?? turnAt,
         durationMs: meta.durationMs,
       })
     }
     return rows
   }, [messages])
-  const latestComputerKey = useMemo(
-    () =>
-      rendered.flatMap((r) => r.blocks).findLast((b) => b.kind === "computer")
-        ?.key,
-    [rendered]
-  )
+  // Only the row holding the newest Computer card is told which one it is.
+  const latestComputer = useMemo(() => {
+    for (let index = rendered.length - 1; index >= 0; index--) {
+      const block = rendered[index].blocks.findLast(
+        (b) => b.kind === "computer"
+      )
+      if (block) return { index, key: block.key }
+    }
+    return undefined
+  }, [rendered])
 
   // If the linked message renders only after the history (or the link
   // changes while the thread is open), scroll to it then. Either way it
@@ -1174,56 +1297,38 @@ export function Thread({
         ref={content}
         className="mx-auto flex max-w-[820px] flex-col gap-5 px-4 pt-2 pb-8 md:px-6"
       >
-        {rendered.map(({ message, blocks, at, durationMs }, index) => (
-          <Fragment key={message.id}>
-            {message.id === unreadFrom ? (
-              <div
-                className="flex items-center gap-3 text-xs font-medium text-kumo-danger"
-                role="separator"
-                aria-label="New messages"
-              >
-                <span className="h-px flex-1 bg-kumo-danger/30" />
-                New
-                <span className="h-px flex-1 bg-kumo-danger/30" />
-              </div>
-            ) : null}
-            <div
-              // Pipeline runs link here: /bots/<id>#task-<taskId>.
-              id={taskAnchor(message)}
-              className={`flex scroll-mt-6 flex-col gap-3 ${isNew(message.id) ? "msg-enter" : ""}`}
-              data-from={message.role === "user" ? "user" : "bot"}
-            >
-              {/* Time zone and locale are the viewer's, so only after hydration. */}
-              {hydrated &&
-              at &&
-              startsNewMoment(at, rendered[index - 1]?.at) ? (
-                <TimeDivider at={at} />
-              ) : null}
-              {message.role === "user" ? (
-                <UserMessage message={message} />
-              ) : (
-                <AssistantMessage
-                  blocks={blocks}
-                  live={replying && index === rendered.length - 1}
-                  onPick={
-                    !busy && index === rendered.length - 1 ? pick : undefined
-                  }
-                  startedAt={at}
-                  durationMs={durationMs}
-                  botId={botId}
-                  latestComputerKey={latestComputerKey}
-                  getLiveView={getLiveView}
-                  getBrowserFrame={getBrowserFrame}
-                  navigateBrowser={navigateBrowser}
-                  readFile={readFile}
-                  onApproval={onApproval}
-                  onProvideSecret={onProvideSecret}
-                  onAnswerChoice={onAnswerChoice}
-                />
-              )}
-            </div>
-          </Fragment>
-        ))}
+        {rendered.map(({ message, blocks, at, durationMs }, index) => {
+          const last = index === rendered.length - 1
+          return (
+            <MessageRow
+              key={message.id}
+              message={message}
+              blocks={blocks}
+              unread={message.id === unreadFrom}
+              entering={isNew(message.id)}
+              skippable={index < rendered.length - ROWS_KEPT_RENDERED}
+              // Time zone and locale are the viewer's, so only after hydration.
+              divider={
+                hydrated && !!at && startsNewMoment(at, rendered[index - 1]?.at)
+              }
+              live={replying && last}
+              onPick={!busy && last ? pick : undefined}
+              startedAt={at}
+              durationMs={durationMs}
+              botId={botId}
+              latestComputerKey={
+                latestComputer?.index === index ? latestComputer.key : undefined
+              }
+              getLiveView={getLiveView}
+              getBrowserFrame={getBrowserFrame}
+              navigateBrowser={navigateBrowser}
+              readFile={readFile}
+              onApproval={approve}
+              onProvideSecret={provideSecret}
+              onAnswerChoice={answerChoice}
+            />
+          )
+        })}
         {scriptApprovals?.map((approval) => (
           <div
             key={approval.callId}
