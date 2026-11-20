@@ -5,6 +5,7 @@
 
 import type { RobotHeadShape } from "robot-heads"
 import type { DeploymentModels, ModelSettings } from "./models"
+import type { ShopPick } from "./shop"
 
 export type BotStatus = "idle" | "thinking" | "working" | "action_needed"
 
@@ -77,6 +78,13 @@ export interface Connection {
     message: string
     kind: "auth" | "unreachable" | "tool"
   }
+}
+
+/** A connection's tool, as its detail page lists it. */
+export interface ConnectionTool {
+  name: string
+  description: string
+  readOnly: boolean
 }
 
 /** A tool from a connection, as the UserHub describes it to bots. */
@@ -236,6 +244,11 @@ export const ACTION_CLASSES = [
     label: "Send email",
     hint: "Reply to email and write to anyone, from the bot's own address",
   },
+  {
+    id: "shop",
+    label: "Shop",
+    hint: "Find products in online stores and set up checkouts you pay for",
+  },
 ] as const
 export type ActionClass = (typeof ACTION_CLASSES)[number]["id"]
 
@@ -249,6 +262,7 @@ export const DEFAULT_RULES: Record<ActionClass, RulePolicy> = {
   routines: "allow",
   manage: "ask",
   email: "ask",
+  shop: "allow",
 }
 
 export interface Routine {
@@ -395,15 +409,93 @@ export interface AppLink {
   token: string
   /** Who it is for, e.g. "Sarah". The owner's own link is "You". */
   label: string
-  mode: "edit" | "view"
+  /**
+   * edit: change anything. view: read anything. submit: a public form that
+   * adds to the app's submit collections and reads only its own entries.
+   */
+  mode: "edit" | "view" | "submit"
   owner: boolean
   createdAt: number
   /** Path on this host, ending in "/". */
   path: string
 }
 
+/**
+ * What a public (submit) link may do in an app. The bot sets it on
+ * save_app; empty `submit` means the app has no public form.
+ */
+export interface AppAccess {
+  /** Collections anyone with a public link can read, e.g. open slots. */
+  read: string[]
+  /** Collections a public link can add to but not read, e.g. responses. */
+  submit: string[]
+  /** Whether submissions wake the bot (a booking needs it, a survey not). */
+  wake: boolean
+}
+
+/**
+ * A limit on a granted tool: the value at `at` in its arguments (dots for
+ * keys, [] for each item of a list) must be one of `allow`. Each allowed
+ * value says whether calling with it only reads.
+ */
+export interface AppToolScope {
+  at: string
+  /** `label` is what the user reads, e.g. "Create event". */
+  allow: { value: string; reads: boolean; label?: string }[]
+}
+
+/**
+ * A tool on one of the user's connections that an app's server.js may
+ * call live. The bot asks for it; it runs only once the user approves.
+ */
+export interface AppToolGrant {
+  /** The bot's name for it, `tool_c<connection>_<tool>`. */
+  name: string
+  connectionId: string
+  /** The tool's own name on the app, e.g. "create_event". */
+  tool: string
+  /** The connection's name, e.g. "Google Calendar". */
+  app: string
+  readOnly: boolean
+  description: string
+  /** Limits on its arguments, e.g. which Executor paths it may run. */
+  only?: AppToolScope[]
+}
+
+/**
+ * What the user approves: one tool, as reading or writing, with its limits.
+ * Shared by the bot (to check) and the Apps tab (to show what is allowed).
+ */
+export function approvalKey(
+  grant: Pick<AppToolGrant, "name" | "readOnly" | "only">
+) {
+  const base = `${grant.name}:${grant.readOnly ? "read" : "write"}`
+  return grant.only?.length ? `${base}:${JSON.stringify(grant.only)}` : base
+}
+
+/** One call in an app's recent tool log, shown to the user. */
+export interface AppToolCallLog {
+  at: number
+  name: string
+  app: string
+  tool: string
+  readOnly: boolean
+  /** The link label it came through. */
+  by: string
+  ok: boolean
+  error?: string
+  /** What the call did, in the user's words, e.g. "Create event". */
+  action?: string
+}
+
 export interface BotAppDetail extends BotAppSummary {
   hasServer: boolean
+  access: AppAccess
+  /** Tools the app asked for. */
+  tools: AppToolGrant[]
+  /** Approval keys the user gave (see approvalKey in app-tools.ts). */
+  approvedTools: string[]
+
   links: AppLink[]
   collections: { name: string; count: number }[]
 }
@@ -507,6 +599,8 @@ export interface MessageMeta {
   task?: BotTask
   /** On a message carrying another bot's result for a task this bot handed out. */
   taskResult?: { taskId: string }
+  /** On a "Buy" message from the product panel: exactly what was picked. */
+  pick?: ShopPick
 }
 
 /** Where a task's result goes when the bot working on it finishes. */

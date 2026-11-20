@@ -55,6 +55,7 @@ export const OPS_RULES: Record<ActionClass, RulePolicy> = {
   routines: "ask",
   manage: "block",
   email: "block",
+  shop: "block", // upstream's shopping tools, checkout included: not this bot's job
 }
 
 /** Tools stricter than their class: what the bot writes into itself. */
