@@ -66,6 +66,14 @@ export interface OpsEnv {
   OPS_GITHUB_APP_PRIVATE_KEY: string
   ACCOUNT_ID: string
   AI_GATEWAY_API_TOKEN: string
+  /**
+   * Service binding to the XMTP backend Worker's `CertificateStatus`
+   * entrypoint (cofferdam-api `xmtp/backend`): the deployed certificate's
+   * dates and names, never the PEM or the key (workspace decision 0042,
+   * amended 2026-11-19). Typed loosely: a binding by Worker name types as a
+   * plain Fetcher, so `certificateBinding` checks for the RPC method.
+   */
+  XMTP_CERTIFICATE: unknown
 }
 
 export type CofferdamEnv = Partial<
@@ -79,6 +87,7 @@ export const SECURITY_LOCKKEEPER_CONNECTION = "cofferdam-security-lockkeeper"
 export const OPS_GITHUB_CONNECTION = "cofferdam-ops-github"
 export const OPS_SPEND_CONNECTION = "cofferdam-ops-spend"
 export const OPS_ZKPASSPORT_CONNECTION = "cofferdam-ops-zkpassport"
+export const OPS_CERTIFICATE_CONNECTION = "cofferdam-ops-certificate"
 
 /**
  * Each preset's connections: its GitHub App, and Lockkeeper or the hub's
@@ -92,6 +101,7 @@ export const PRESET_CONNECTIONS: Record<
     lockkeeper?: string
     spend?: string
     zkpassport?: string
+    certificate?: string
   }
 > = {
   engineering: {
@@ -108,13 +118,14 @@ export const PRESET_CONNECTIONS: Record<
     github: OPS_GITHUB_CONNECTION,
     spend: OPS_SPEND_CONNECTION,
     zkpassport: OPS_ZKPASSPORT_CONNECTION,
+    certificate: OPS_CERTIFICATE_CONNECTION,
     githubName: "GitHub (Ops App)",
   },
 }
 
 function connectionsOf(preset: Preset) {
   const c = PRESET_CONNECTIONS[preset]
-  return [c.github, c.lockkeeper, c.spend, c.zkpassport].filter(
+  return [c.github, c.lockkeeper, c.spend, c.zkpassport, c.certificate].filter(
     Boolean
   ) as string[]
 }
@@ -453,6 +464,23 @@ const ZKPASSPORT_TOOL_DEFS: ToolDef[] = [
   },
 ]
 
+/** Under this many days left, the certificate is due for renewal. */
+export const CERT_RENEW_DAYS = 21
+/** At or under this many days, renewing is urgent: phones stop connecting at expiry. */
+export const CERT_URGENT_DAYS = 7
+/** What the founder runs on the Mac (workspace docs/runbooks/xmtp-backend.md). */
+export const CERT_RENEW_COMMAND = "scripts/xmtp/tls-renew.sh"
+
+/** The XMTP certificate check: one read over the service binding. */
+const CERTIFICATE_TOOL_DEFS: ToolDef[] = [
+  {
+    name: "xmtp_certificate",
+    description: `The XMTP backend's TLS certificate as deployed (xmtp.cofferdam.xyz, served by the backend's container; Let's Encrypt, short-lived): its expiry, days left, names, and the action: none, renew (under ${CERT_RENEW_DAYS} days), urgent (${CERT_URGENT_DAYS} days or fewer), not_issued, or unreadable. Never the certificate or its key. Reads only.`,
+    inputSchema: { type: "object", properties: {} },
+    readOnly: true,
+  },
+]
+
 const LOCKKEEPER_TOOL_DEFS: ToolDef[] = [
   {
     name: "brief",
@@ -595,6 +623,30 @@ export function cofferdamCatalog(
           }),
     })
   }
+  if (conn.certificate) {
+    const bound = certificateBound(env)
+    if (bound) {
+      tools.push(
+        ...CERTIFICATE_TOOL_DEFS.map((t) => ({
+          ...t,
+          connectionId: conn.certificate!,
+          connectionName: "XMTP certificate",
+        }))
+      )
+    }
+    apps.push({
+      id: conn.certificate,
+      name: "XMTP certificate",
+      status: bound ? "ready" : "failed",
+      tools: CERTIFICATE_TOOL_DEFS.length,
+      ...(bound
+        ? {}
+        : {
+            error:
+              "Not configured: the service binding to the XMTP backend (XMTP_CERTIFICATE) is missing.",
+          }),
+    })
+  }
   return { apps, tools }
 }
 
@@ -612,7 +664,9 @@ export function cofferdamToolReadOnly(connectionId: string, name: string) {
         ? SPEND_TOOL_DEFS
         : conn.zkpassport === connectionId
           ? ZKPASSPORT_TOOL_DEFS
-          : LOCKKEEPER_TOOL_DEFS
+          : conn.certificate === connectionId
+            ? CERTIFICATE_TOOL_DEFS
+            : LOCKKEEPER_TOOL_DEFS
   return defs.find((t) => t.name === name)?.readOnly === true
 }
 
@@ -1467,6 +1521,19 @@ export async function callCofferdamTool(
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     }
   }
+  if (connectionId === conn.certificate) {
+    if (!CERTIFICATE_TOOL_DEFS.some((t) => t.name === name)) {
+      throw new Error(`No XMTP certificate tool named ${name}.`)
+    }
+    const binding = certificateBinding(env)
+    if (!binding) {
+      throw new Error("The service binding to the XMTP backend is missing.")
+    }
+    const result = certificateReport(await binding.status())
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    }
+  }
   if (connectionId === conn.lockkeeper) {
     const repo = str(args, "repo")
     if (repo !== undefined) {
@@ -1481,6 +1548,78 @@ export async function callCofferdamTool(
   const result = await callGitHub(env, preset, name, args)
   return {
     content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+  }
+}
+
+/** The service binding to the XMTP backend's CertificateStatus, or null. */
+function certificateBinding(
+  env: CofferdamEnv
+): { status(): Promise<unknown> } | null {
+  const b = env.XMTP_CERTIFICATE as { status?: unknown } | undefined
+  return b && typeof b.status === "function"
+    ? (b as { status(): Promise<unknown> })
+    : null
+}
+
+/** Whether the deployment has the service binding to the XMTP backend. */
+export function certificateBound(env: CofferdamEnv) {
+  return certificateBinding(env) !== null
+}
+
+type CertificateAction = "none" | "renew" | "urgent" | "not_issued" | "unreadable"
+
+/**
+ * The backend's answer cut to its listed fields, with the action to take.
+ * Anything not in the expected shape is unreadable, never passed through.
+ */
+export function certificateReport(answer: unknown) {
+  const a = (answer ?? {}) as Record<string, unknown>
+  const iso = (v: unknown) =>
+    typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : undefined
+  const checkedAt = iso(a.checkedAt)
+  if (a.configured === false) {
+    return {
+      action: "not_issued" as CertificateAction,
+      note: `No certificate is set on the backend Worker yet: the founder issues it with ${CERT_RENEW_COMMAND} on the Mac.`,
+      checkedAt,
+    }
+  }
+  const notAfter = iso(a.notAfter)
+  const daysLeft =
+    typeof a.daysLeft === "number" && Number.isInteger(a.daysLeft)
+      ? a.daysLeft
+      : undefined
+  if (a.configured !== true || !notAfter || daysLeft === undefined) {
+    return {
+      action: "unreadable" as CertificateAction,
+      note: "The backend could not read its certificate: check it on the Mac with scripts/xmtp/tls-check.sh.",
+      checkedAt,
+    }
+  }
+  const dnsNames = Array.isArray(a.dnsNames)
+    ? a.dnsNames
+        .filter((n): n is string => typeof n === "string")
+        .filter((n) => /^[a-z0-9.*-]{1,253}$/i.test(n))
+        .slice(0, 10)
+    : []
+  const action: CertificateAction =
+    daysLeft <= CERT_URGENT_DAYS
+      ? "urgent"
+      : daysLeft < CERT_RENEW_DAYS
+        ? "renew"
+        : "none"
+  return {
+    action,
+    notAfter,
+    notBefore: iso(a.notBefore),
+    daysLeft,
+    dnsNames,
+    ...(action === "none"
+      ? {}
+      : {
+          renew: `The founder runs ${CERT_RENEW_COMMAND} from the workspace on the Mac; the container picks the new certificate up within a minute.`,
+        }),
+    checkedAt,
   }
 }
 

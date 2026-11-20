@@ -73,6 +73,9 @@ import {
   OPS_GITHUB_CONNECTION,
   OPS_SPEND_CONNECTION,
   OPS_ZKPASSPORT_CONNECTION,
+  OPS_CERTIFICATE_CONNECTION,
+  CERT_RENEW_COMMAND,
+  certificateReport,
   opsCommentRefusal,
   opsIssueRefusal,
   opsDocRefusal,
@@ -1537,8 +1540,11 @@ describe("Ops bot", () => {
     expect(policy).toMatch(/docs\/runbooks\/zkpassport-watch\.md/)
   })
 
-  it("lists documents, issue reads, its comment, the watch issue, the bots' spend and the ZKPassport watch, and no Lockkeeper", () => {
-    const catalog = cofferdamCatalog(env, "ops")
+  it("lists documents, issue reads, its comment, the watch issue, the bots' spend, the ZKPassport watch and the XMTP certificate, and no Lockkeeper", () => {
+    const catalog = cofferdamCatalog(
+      { ...env, XMTP_CERTIFICATE: { status: async () => ({}) } },
+      "ops"
+    )
     expect(catalog.tools.map((t) => t.name).sort()).toEqual([
       "bots_spend",
       "comment",
@@ -1547,14 +1553,19 @@ describe("Ops bot", () => {
       "list_issues",
       "read_doc",
       "search_issues",
+      "xmtp_certificate",
       "zkpassport_live",
       "zkpassport_watch",
     ])
     expect(catalog.apps.map((a) => a.id).sort()).toEqual([
+      OPS_CERTIFICATE_CONNECTION,
       OPS_GITHUB_CONNECTION,
       OPS_SPEND_CONNECTION,
       OPS_ZKPASSPORT_CONNECTION,
     ])
+    expect(cofferdamToolReadOnly(OPS_CERTIFICATE_CONNECTION, "xmtp_certificate")).toBe(true)
+    expect(presetHolds("security", OPS_CERTIFICATE_CONNECTION)).toBe(false)
+    expect(presetHolds("engineering", OPS_CERTIFICATE_CONNECTION)).toBe(false)
     const ro = (c: string, n: string) => cofferdamToolReadOnly(c, n)
     expect(ro(OPS_GITHUB_CONNECTION, "read_doc")).toBe(true)
     expect(ro(OPS_GITHUB_CONNECTION, "comment")).toBe(false)
@@ -1573,6 +1584,75 @@ describe("Ops bot", () => {
     const empty = cofferdamCatalog({}, "ops")
     expect(empty.tools).toEqual([])
     expect(empty.apps.every((a) => a.status === "failed")).toBe(true)
+  })
+
+  it("checks the XMTP certificate in every weekday check-in, never renewing it", () => {
+    expect(OPS_ROUTINE.prompt).toMatch(/xmtp_certificate/)
+    expect(OPS_ROUTINE.prompt).toContain(CERT_RENEW_COMMAND)
+    expect(OPS_ROUTINE.prompt).toMatch(/every check-in/)
+    expect(opsPolicy()).toMatch(/xmtp_certificate: its expiry and the action, never the certificate or its key/)
+    expect(opsPolicy()).toMatch(/you never renew it/)
+  })
+
+  it("reads the certificate over the service binding and cuts the answer", async () => {
+    const answer = {
+      configured: true,
+      notBefore: "2026-11-19T00:00:00.000Z",
+      notAfter: "2027-02-17T00:00:00.000Z",
+      dnsNames: ["xmtp.cofferdam.xyz", "<script>"],
+      daysLeft: 12,
+      checkedAt: "2027-02-05T09:00:00.000Z",
+      pem: "-----BEGIN CERTIFICATE-----",
+    }
+    const result = (await callCofferdamTool(
+      { ...env, XMTP_CERTIFICATE: { status: async () => answer } },
+      "ops",
+      OPS_CERTIFICATE_CONNECTION,
+      "xmtp_certificate",
+      {}
+    )) as { content: { text: string }[] }
+    const report = JSON.parse(result.content[0]!.text)
+    expect(report).toMatchObject({
+      action: "renew",
+      daysLeft: 12,
+      notAfter: answer.notAfter,
+      dnsNames: ["xmtp.cofferdam.xyz"],
+    })
+    expect(report.renew).toContain(CERT_RENEW_COMMAND)
+    expect(result.content[0]!.text).not.toContain("BEGIN CERTIFICATE")
+    await expect(
+      callCofferdamTool(env, "ops", OPS_CERTIFICATE_CONNECTION, "xmtp_certificate", {})
+    ).rejects.toThrow(/service binding to the XMTP backend is missing/)
+    await expect(
+      callCofferdamTool(
+        { ...env, XMTP_CERTIFICATE: { status: async () => answer } },
+        "security",
+        OPS_CERTIFICATE_CONNECTION,
+        "xmtp_certificate",
+        {}
+      )
+    ).rejects.toThrow(/not available to this bot/)
+  })
+
+  it("names the action by days left, and fails closed on an odd answer", () => {
+    const at = (daysLeft: number) =>
+      certificateReport({
+        configured: true,
+        notAfter: "2027-02-17T00:00:00.000Z",
+        daysLeft,
+        checkedAt: "2027-01-01T00:00:00.000Z",
+      }).action
+    expect(at(60)).toBe("none")
+    expect(at(21)).toBe("none")
+    expect(at(20)).toBe("renew")
+    expect(at(8)).toBe("renew")
+    expect(at(7)).toBe("urgent")
+    expect(at(-1)).toBe("urgent")
+    expect(certificateReport({ configured: false }).action).toBe("not_issued")
+    expect(certificateReport({ configured: true, error: "certificate: x" }).action).toBe("unreadable")
+    expect(certificateReport("nonsense").action).toBe("unreadable")
+    expect(certificateReport({ configured: true, notAfter: "x", daysLeft: 3 }).action).toBe("unreadable")
+    expect(certificateReport({ configured: true, notAfter: "2027-02-17T00:00:00.000Z", daysLeft: 2.5 }).action).toBe("unreadable")
   })
 
   it("refuses any write but its comment and the watch issue", async () => {

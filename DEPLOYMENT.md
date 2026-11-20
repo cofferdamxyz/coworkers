@@ -834,8 +834,12 @@ sign-in after the deploy that carries it, never by hand:
   `cofferdamxyz/cofferdam`; ZKPassport's live state (`zkpassport_live`,
   `zkpassport_watch`: Base's root registry through `mainnet.base.org`, npm,
   GitHub's public API and `circuits2.zkpassport.id`, compared with the
-  known-good set in the workspace `docs/runbooks/zkpassport-watch.md`). No
-  Lockkeeper, no billing credential, no ZKPassport code.
+  known-good set in the workspace `docs/runbooks/zkpassport-watch.md`); the
+  XMTP backend's TLS certificate as deployed (`xmtp_certificate`, over the
+  service binding `XMTP_CERTIFICATE` to the `cofferdam-xmtp-backend` Worker's
+  `CertificateStatus` entrypoint: its expiry, days left and names, never the
+  certificate or its key; the action `renew` under 21 days, `urgent` at 7 or
+  fewer). No Lockkeeper, no billing credential, no ZKPassport code.
 - **Writes, each on an approval card, never in a background turn:** a comment
   on an `ops` issue (the daily note, the Monday checklist, an update on the
   watch issue); the ZKPassport watch issue itself (`create_issue`, title
@@ -845,11 +849,16 @@ sign-in after the deploy that carries it, never by hand:
 - **Never:** labels, filing any other issue, closing issues, `dispatch`,
   company state (the OS's), a payment, a subscription or a credential, a
   shell, scripts, the browser, email, managing bots.
-- **Routines:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only;
+- **Routines:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only
+  (it calls `xmtp_certificate` and names a certificate due for renewal in
+  every check-in until the founder runs `scripts/xmtp/tls-renew.sh`);
   "ZKPassport watch", every day 07:00 São Paulo, read-only (a move is told in
   chat; the issue waits for the founder).
 - Its connections (`cofferdam-ops-github`, `cofferdam-ops-spend`,
-  `cofferdam-ops-zkpassport`) are listed only to it. The watch needs no new
+  `cofferdam-ops-zkpassport`, `cofferdam-ops-certificate`) are listed only to
+  it. The certificate check needs no secret: deploy the XMTP backend with its
+  `CertificateStatus` entrypoint (cofferdam-api `ebe4e0d` and later) before
+  this Worker, since the service binding names it. The watch needs no new
   secret or App permission: it reads the runbook with the Ops App's Contents
   read-only, files with its Issues write, and reads ZKPassport's public data
   without a token (the Ops App's token only after a GitHub rate limit).

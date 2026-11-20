@@ -208,6 +208,14 @@ export default defineConfig({
       // token and no billing credential.
       OPS_GITHUB_APP_ID: bindings.text(deploy.opsGithubAppId ?? ""),
       OPS_GITHUB_APP_PRIVATE_KEY: bindings.secret(),
+      // Cofferdam: the Ops bot reads the XMTP backend's TLS certificate as
+      // deployed (its dates and names only) through the backend Worker's
+      // CertificateStatus entrypoint (cofferdam-api xmtp/backend). The backend
+      // must be deployed with that entrypoint first.
+      XMTP_CERTIFICATE: bindings.worker({
+        worker: "cofferdam-xmtp-backend",
+        exportName: "CertificateStatus",
+      }),
     },
   },
 })

@@ -49,7 +49,12 @@ and the rest of this file (below the line) is upstream's own guide.
   known-good set in the workspace `docs/runbooks/zkpassport-watch.md`; a daily
   routine, and `create_issue` for the one watch issue only, `ops` label alone,
   `opsIssueRefusal`; the watch issue takes only text ending with the watch's
-  marker line, `watchMarkerRefusal`); no Lockkeeper, no billing credential (Cofferdam OS stays
+  marker line, `watchMarkerRefusal`); the XMTP backend's TLS certificate as
+  deployed (`xmtp_certificate`, over the service binding `XMTP_CERTIFICATE` to
+  the `cofferdam-xmtp-backend` Worker's `CertificateStatus` entrypoint: dates
+  and names only, `certificateReport` cuts the answer and names the action,
+  `renew` under `CERT_RENEW_DAYS` (21), `urgent` at `CERT_URGENT_DAYS` (7);
+  checked in the weekday check-in); no Lockkeeper, no billing credential (Cofferdam OS stays
   the meter), and never ZKPassport's code. A preset's further routines
   (`extraRoutines`) sync each under its own key (`presetRoutines`). The
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
