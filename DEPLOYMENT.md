@@ -873,3 +873,4 @@ sign-in after the deploy that carries it, never by hand:
 |---|---|---|---|
 | — | — | — | Not deployed yet. Dry run passed 2026-11-02 from the Mac (`cf deploy --prebuilt --dry-run`, the workspace `.envrc` loaded); waits on steps 1 to 6. |
 | 2026-11-20 | `c92d33c` | `f7e4279f-bda4-4b16-9f38-120b00ff3156` | Upstream `fayazara/coworkers@8cc548b` merged, with `1d68ff6` (the Google integration's removal) reverted; upstream's shop and integrations screens on the brand tokens; `shop` blocked in every preset floor. From the Mac, `scripts/cofferdam-deploy.ts`. |
+| 2026-11-20 | `e91112a` | `62a38454-03cb-4856-abd1-81b0e500969b` | The chat thread's rendering: memoised rows (a streamed chunk re-renders only the reply being written), off-screen rows skipped with `content-visibility: auto`, code blocks highlighted once they stop streaming. From the Mac, `scripts/cofferdam-deploy.ts`. |
