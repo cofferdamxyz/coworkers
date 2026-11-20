@@ -872,3 +872,4 @@ sign-in after the deploy that carries it, never by hand:
 | Date | Commit | Version id | Notes |
 |---|---|---|---|
 | — | — | — | Not deployed yet. Dry run passed 2026-11-02 from the Mac (`cf deploy --prebuilt --dry-run`, the workspace `.envrc` loaded); waits on steps 1 to 6. |
+| 2026-11-20 | `c92d33c` | `f7e4279f-bda4-4b16-9f38-120b00ff3156` | Upstream `fayazara/coworkers@8cc548b` merged, with `1d68ff6` (the Google integration's removal) reverted; upstream's shop and integrations screens on the brand tokens; `shop` blocked in every preset floor. From the Mac, `scripts/cofferdam-deploy.ts`. |
