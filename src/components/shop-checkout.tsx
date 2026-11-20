@@ -74,7 +74,7 @@ export function ShopCheckoutCard({ call }: { call: ToolCall }) {
         aria-busy="true"
         className="flex w-full max-w-[640px] items-center gap-3 rounded-3xl bg-kumo-tint p-3 pr-4"
       >
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-kumo-base text-kumo-subtle outline outline-1 -outline-offset-1 outline-black/[0.06]">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-kumo-base text-kumo-subtle outline outline-1 -outline-offset-1 outline-kumo-line">
           <ShoppingBagIcon size={20} />
         </span>
         <ShimmerText
@@ -202,7 +202,7 @@ function Checkout({ initial }: { initial: ShopCheckout }) {
             return (
               <li key={line.id} className="flex items-center gap-3.5 p-3">
                 <span
-                  className={`relative shrink-0 overflow-hidden rounded-xl bg-white outline outline-1 -outline-offset-1 outline-black/[0.06] ${single ? "h-[100px] w-[80px]" : "h-[70px] w-[56px]"}`}
+                  className={`relative shrink-0 overflow-hidden rounded-xl bg-surface-web outline outline-1 -outline-offset-1 outline-kumo-line ${single ? "h-[100px] w-[80px]" : "h-[70px] w-[56px]"}`}
                 >
                   {line.image ? (
                     <img
@@ -330,7 +330,7 @@ function Checkout({ initial }: { initial: ShopCheckout }) {
               target="_blank"
               rel="noreferrer noopener"
               onClick={() => setWentToPay(true)}
-              className="pressable flex h-12 w-full items-center justify-center gap-2 rounded-full bg-kumo-contrast px-5 text-[15px] font-semibold text-kumo-inverse shadow-[0_1px_2px_oklch(0_0_0/0.12)] transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-kumo-focus focus-visible:ring-offset-2 focus-visible:ring-offset-kumo-tint focus-visible:outline-none"
+              className="pressable flex h-12 w-full items-center justify-center gap-2 rounded-full bg-kumo-contrast px-5 text-[15px] font-semibold text-kumo-inverse shadow-[var(--brand-shadow-button)] transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-kumo-focus focus-visible:ring-offset-2 focus-visible:ring-offset-kumo-tint focus-visible:outline-none"
             >
               <LockIcon size={16} />
               Review and pay on Shop

@@ -339,7 +339,7 @@ function Catalog({ onOpen }: { onOpen: (page: string) => void }) {
       </div>
 
       {visible.length === 0 ? (
-        <div className="rounded-2xl px-6 py-10 text-center outline outline-1 -outline-offset-1 outline-black/[0.06]">
+        <div className="rounded-2xl px-6 py-10 text-center outline outline-1 -outline-offset-1 outline-kumo-line">
           <p className="text-sm text-kumo-default">
             {q ? `Nothing matches “${q}”` : "Nothing here yet"}
           </p>

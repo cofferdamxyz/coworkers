@@ -282,7 +282,7 @@ function Gallery({ media, title }: { media: ShopMedia[]; title: string }) {
 
   return (
     <div className="space-y-2.5">
-      <div className="group/gallery relative mx-auto aspect-[4/5] max-h-[42vh] max-w-[calc(42vh*0.8)] overflow-hidden rounded-3xl bg-white outline outline-1 -outline-offset-1 outline-black/[0.06] md:max-h-[56vh] md:max-w-[calc(56vh*0.8)]">
+      <div className="group/gallery relative mx-auto aspect-[4/5] max-h-[42vh] max-w-[calc(42vh*0.8)] overflow-hidden rounded-3xl bg-surface-web outline outline-1 -outline-offset-1 outline-kumo-line md:max-h-[56vh] md:max-w-[calc(56vh*0.8)]">
         <div
           ref={strip}
           onScroll={onScroll}
@@ -326,7 +326,7 @@ function Gallery({ media, title }: { media: ShopMedia[]; title: string }) {
               aria-label={`Show ${item.video ? "video" : "photo"} ${i + 1}`}
               aria-current={i === index}
               onClick={() => go(i)}
-              className={`relative h-[60px] w-12 shrink-0 overflow-hidden rounded-xl bg-white outline -outline-offset-1 transition-[outline-color,opacity] ${i === index ? "outline-2 outline-kumo-contrast" : "opacity-80 outline-1 outline-black/[0.06] hover:opacity-100"}`}
+              className={`relative h-[60px] w-12 shrink-0 overflow-hidden rounded-xl bg-surface-web outline -outline-offset-1 transition-[outline-color,opacity] ${i === index ? "outline-2 outline-kumo-contrast" : "opacity-80 outline-1 outline-kumo-line hover:opacity-100"}`}
             >
               <img
                 src={sizedImage(item.url, 120)}
