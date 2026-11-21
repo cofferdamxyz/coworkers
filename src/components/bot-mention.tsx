@@ -30,6 +30,8 @@ export function BotMention({
       <BotAvatar
         avatar={bot.avatar}
         size={16}
+        // Mentions repeat down a chat; a moving head in each costs frames.
+        still
         className="shrink-0 self-center"
       />
       {bot.name}

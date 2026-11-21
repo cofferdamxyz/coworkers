@@ -924,7 +924,11 @@ const UserMessage = memo(function UserMessage({
         <SystemEvent>
           {label}{" "}
           <span className="inline-flex items-center gap-1.5 align-middle font-medium text-kumo-default">
-            <BotAvatar avatar={origin.avatar ?? "blue-rectangle"} size={16} />
+            <BotAvatar
+              avatar={origin.avatar ?? "blue-rectangle"}
+              size={16}
+              still
+            />
             {origin.name}
           </span>
         </SystemEvent>
