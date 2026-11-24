@@ -760,6 +760,22 @@ controls → MCP Portals:
 **12.3 The OS connector and the rule** follow (the session, then the founder in
 Cofferdam OS).
 
+**12.4 The company Grok Bot through the portal (test, 2026-11-24).** A second
+client of the same portal, on an Access service token instead of OAuth: the
+token `coworkers-grok-bot` and the Service Auth policy `coworkers: grok-bot`
+(that token alone), attached to both the `Cofferdam` portal and the `Coworkers`
+server next to `coworkers: people`; nothing changed in this Worker. In Grok
+Bot, Connect Apps → Add MCP Server: name `cofferdam-bots`, URL
+`https://mcp.cofferdam.xyz/mcp`, headers `CF-Access-Client-Id` and
+`CF-Access-Client-Secret`. Its first `message_bot` reached the Engineering bot,
+labelled as the Cloudflare MCP Portal like the OS's messages. Grok Bot's own
+OAuth was refused by the portal (its callback,
+`https://www.cursor.com/agents/mcp/oauth/callback`, is shared by every Cursor
+agent and stays off the portal's allowed redirect URIs). Its sign-in attempt
+straight to `/mcp` was cancelled on the consent page and left three unused
+client registrations here, with no grant. To cut it off: delete the token.
+Workspace runbook `agentic-loop-completion.md` §5; expiry in `renewals.md`.
+
 ## The Engineering bot
 
 Created by code (`src/cofferdam/engineering.ts`) in the owner's hub on the first
