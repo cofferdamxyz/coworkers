@@ -709,6 +709,12 @@ Done 2026-11-04 ~19:45 UTC: the founder put the workspace's read-only "AI Gatewa
 Token" (AI Gateway Read) as the Worker's `AI_GATEWAY_API_TOKEN`, replacing the
 empty placeholder.
 
+Corrected 2026-11-26: a last-used test showed the Worker held the "AI Gateway Setup
+Token" (AI Gateway Write, Zero Trust Read and Write), not the read-only one. The
+founder replaced it the same day with the read-only "AI Gateway Token" from the
+workspace `.envrc` (`wrangler secret put AI_GATEWAY_API_TOKEN --name coworkers`, the
+value piped from `.envrc`, never printed); the workspace inventory records both.
+
 **11.5 Deploy again** (the session), so `OPS_GITHUB_APP_ID` carries the id.
 
 ## 12. Joint 9: Cofferdam OS through an MCP portal
