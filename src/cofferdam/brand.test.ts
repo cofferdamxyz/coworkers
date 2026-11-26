@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { THEME_COLORS } from "@/lib/theme"
+import { BOT_AVATARS, COFFERDAM_BOT_LOOKS } from "@/lib/types"
+import { PRESETS } from "./config"
+import { presetAvatar } from "./presets"
 
 const read = (path: string) =>
   readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8").replace(
@@ -74,5 +77,28 @@ describe("the Cofferdam brand layer", () => {
     expect(mapped.get("--brand-surface")).toBe("var(--cd-web-bg)")
     expect(cdLight.get("--cd-web-bg")).toBe(THEME_COLORS.light)
     expect(cdDark.get("--cd-web-bg")).toBe(THEME_COLORS.dark)
+  })
+})
+
+describe("the bots' faces", () => {
+  it("gives every preset bot the brand's look for its preset", () => {
+    for (const preset of PRESETS) {
+      expect(COFFERDAM_BOT_LOOKS).toHaveProperty(presetAvatar(preset))
+    }
+    expect(COFFERDAM_BOT_LOOKS["cofferdam-engineering"]).toMatchObject({
+      shape: "rectangle",
+      color: "#3c8aff",
+    })
+  })
+
+  it("keeps the brand's looks out of the roster new bots draw from", () => {
+    for (const kind of Object.keys(COFFERDAM_BOT_LOOKS)) {
+      expect(BOT_AVATARS as readonly string[]).not.toContain(kind)
+    }
+  })
+
+  it("gives each bot its own shape", () => {
+    const shapes = Object.values(COFFERDAM_BOT_LOOKS).map((l) => l.shape)
+    expect(new Set(shapes).size).toBe(shapes.length)
   })
 })

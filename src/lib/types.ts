@@ -4,6 +4,7 @@
  */
 
 import type { RobotHeadShape } from "robot-heads"
+import { BOT_LOOKS } from "@/cofferdam/brand/bot-looks.generated"
 import type { DeploymentModels, ModelSettings } from "./models"
 import type { ShopPick } from "./shop"
 
@@ -29,8 +30,28 @@ export const BOT_AVATAR_LOOKS = {
   "sky-square": { shape: "square", color: "#2f86d6" },
 } as const satisfies Record<string, { shape: RobotHeadShape; color: string }>
 
-export type BotAvatarKind = keyof typeof BOT_AVATAR_LOOKS
-export const BOT_AVATARS = Object.keys(BOT_AVATAR_LOOKS) as BotAvatarKind[]
+/**
+ * Cofferdam: the company bots' faces, from cofferdam-branding (`bots` in its
+ * tokens/brand.json, synced as bot-looks.generated.ts). The UserHub gives each
+ * preset bot its own; they stay out of BOT_AVATARS, the roster new bots draw
+ * from.
+ */
+export const COFFERDAM_BOT_LOOKS = {
+  "cofferdam-engineering": BOT_LOOKS.engineering,
+  "cofferdam-security": BOT_LOOKS.security,
+  "cofferdam-ops": BOT_LOOKS.ops,
+  "cofferdam-marketing": BOT_LOOKS.marketing,
+} as const satisfies Record<
+  string,
+  { shape: RobotHeadShape; color: string; trimColor: string }
+>
+
+export type BotAvatarKind =
+  | keyof typeof BOT_AVATAR_LOOKS
+  | keyof typeof COFFERDAM_BOT_LOOKS
+export const BOT_AVATARS = Object.keys(
+  BOT_AVATAR_LOOKS
+) as (keyof typeof BOT_AVATAR_LOOKS)[]
 
 /** One row of the sidebar. Owned by the UserHub, updated by each bot. */
 export interface BotSummary {

@@ -197,6 +197,7 @@ import type { Preset } from "@/cofferdam/config"
 import {
   isPreset,
   PRESET_DEFS,
+  presetAvatar,
   presetPolicy,
   presetRoutines,
   routineKey,
@@ -1053,6 +1054,10 @@ export class BotAgent extends Think<Env, BotState> {
    * floor and policy apply from then on, whatever the settings say.
    */
   async ensureCofferdamPreset(preset: Preset) {
+    // The brand's face for the preset, which the bot's own page draws; the
+    // hub gives its summary the same one (givePresetFace).
+    const avatar = presetAvatar(preset)
+    if (this.state.avatar !== avatar) this.setState({ ...this.state, avatar })
     if (this.cofferdamPreset === preset) {
       await this.syncPresetRoutine(preset)
       return

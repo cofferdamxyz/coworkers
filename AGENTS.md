@@ -64,21 +64,27 @@ and the rest of this file (below the line) is upstream's own guide.
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
   per-permission tokens for any App. Tests in `cofferdam.test.ts`.
 - `src/cofferdam/brand/`: the Cofferdam brand over upstream's theme tokens
-  (`docs/theming.md`). `brand.generated.css` and `fonts/` (Geist, Geist Mono)
-  are copied verbatim from `cofferdam-branding` (`dist/pages/brand.generated.css`,
-  `fonts/`); never edit a value there, change the brand and copy again.
+  (`docs/theming.md`). `brand.generated.css`, `bot-looks.generated.ts` (the
+  bots' faces) and `fonts/` (Geist, Geist Mono; Geist Serif is copied but not
+  loaded) are copied verbatim from `cofferdam-branding`
+  (`dist/pages/brand.generated.css`, `dist/bots/bot-looks.generated.ts`,
+  `fonts/`); never edit a value there, change the brand and copy again. The
+  faces are `COFFERDAM_BOT_LOOKS` in `src/lib/types.ts` (kept out of the
+  roster new bots draw from), drawn by `src/components/bot-avatar.tsx` with the
+  brand's trim colour.
   `theme.css` points the `--brand-*` tokens at the `--cd-*` ones: ink primary
   actions, the accent for focus, links and selection, Geist everywhere. Tests
   in `brand.test.ts`. A brand change is copied in from cofferdam-branding with
   `node scripts/sync.mjs --only=coworkers --write` (`DEPLOYMENT.md`, Brand).
 - Small, marked hooks in upstream files (each starts with a `Cofferdam:` comment):
-  `src/agents/user-hub.ts` (provisions each preset bot for the owner once; lists
+  `src/agents/user-hub.ts` (provisions each preset bot for the owner once and
+  gives it the brand's face on every start, `givePresetFace`; lists
   and routes a preset's deployment connections to the bot holding it only, and
   answers the Ops bot's `bots_spend` from its own spend sync),
   `src/agents/bot-agent.ts` (the rules floor in `policyFor`, read-only background
   turns, the policy appended to `instructions`, `ensureCofferdamPreset`, which
-  also brings a preset routine's change in code to an existing bot once, keyed
-  by `routineKey`),
+  also gives the bot its preset's face for its own page and brings a preset
+  routine's change in code to an existing bot once, keyed by `routineKey`),
   `src/control/operation.ts`, `src/control/bots.ts` and `src/mcp/server.ts`
   (an operation may declare itself `idempotent`, which `/mcp` publishes as
   `idempotentHint`; an outside agent's `message_bot` requires its

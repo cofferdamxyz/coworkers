@@ -605,9 +605,16 @@ its card, lands in `cofferdam` with the `security` label.
 The Cofferdam brand is the fork's own layer over upstream's theme tokens
 (`docs/theming.md`), in `src/cofferdam/brand/`: `theme.css` (hand-written,
 points the `--brand-*` tokens at cofferdam-branding's `--cd-*` ones),
-`brand.generated.css` and `fonts/` (Geist, Geist Mono). The last two are
-cofferdam-branding's `dist/pages/brand.generated.css` and `fonts/` copied byte
-for byte; never edit them. A brand change arrives from cofferdam-branding on the
+`brand.generated.css`, `bot-looks.generated.ts` and `fonts/` (Geist, Geist
+Mono, and Geist Serif, which the fork does not load). The last three are
+cofferdam-branding's `dist/pages/brand.generated.css`,
+`dist/bots/bot-looks.generated.ts` and `fonts/` copied byte for byte; never
+edit them. `bot-looks.generated.ts` is each company bot's face (`bots` in
+cofferdam-branding's `tokens/brand.json`, the same looks as the GitHub Apps'
+pictures): the UserHub gives each preset bot its own on every start
+(`givePresetFace`), so a bot provisioned with an upstream look changes over on
+the first start after a deploy; messages it sent before keep the look they
+were stamped with. A brand change arrives from cofferdam-branding on the
 Mac, not as a pull request (its `brand-sync` workflow serves the app and the
 website only):
 

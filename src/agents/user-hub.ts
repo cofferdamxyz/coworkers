@@ -24,7 +24,7 @@ import { emailDirectory } from "./email-directory"
 import { userIdForEmail } from "@/lib/auth"
 import { PRESETS } from "@/cofferdam/config"
 import type { Preset } from "@/cofferdam/config"
-import { isPreset } from "@/cofferdam/presets"
+import { isPreset, presetAvatar } from "@/cofferdam/presets"
 import {
   callCofferdamTool,
   cofferdamCatalog,
@@ -331,6 +331,7 @@ export class UserHub extends Agent<Env, HubState> implements HubPort {
     if (held?.bot_id) {
       if (this.state.bots.some((b) => b.id === held.bot_id)) {
         await (await this.bot(held.bot_id)).ensureCofferdamPreset(preset)
+        this.givePresetFace(held.bot_id, preset)
       }
       return
     }
@@ -349,6 +350,19 @@ export class UserHub extends Agent<Env, HubState> implements HubPort {
     this.sql`UPDATE cofferdam_presets SET bot_id = ${botId}
       WHERE preset = ${preset}`
     await (await this.bot(botId)).ensureCofferdamPreset(preset)
+    this.givePresetFace(botId, preset)
+  }
+
+  /**
+   * Cofferdam: a preset bot wears the brand's face for its preset (cofferdam-branding,
+   * `bots`), on every start, so bots provisioned with an upstream look change
+   * over once. Messages it sent before keep the look they were stamped with.
+   */
+  private givePresetFace(botId: string, preset: Preset) {
+    const avatar = presetAvatar(preset)
+    if (this.state.bots.some((b) => b.id === botId && b.avatar !== avatar)) {
+      this.patchBot(botId, { avatar })
+    }
   }
 
   /** The preset a bot holds, if any. RPC for the bot itself. */

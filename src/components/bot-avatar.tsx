@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { RobotHead } from "robot-heads"
-import type { RobotHeadState } from "robot-heads"
-import { BOT_AVATARS, BOT_AVATAR_LOOKS } from "@/lib/types"
+import type { RobotHeadShape, RobotHeadState } from "robot-heads"
+import {
+  BOT_AVATARS,
+  BOT_AVATAR_LOOKS,
+  COFFERDAM_BOT_LOOKS,
+} from "@/lib/types"
 import type { BotAvatarKind, BotStatus } from "@/lib/types"
 
 interface BotAvatarProps {
@@ -65,18 +69,21 @@ export function BotAvatar({
   const onScreen = useOnScreen(canvas, still)
   const h = hash(avatar)
   // Bots created before robot-heads stored other avatar names; give them a
-  // stable look instead.
+  // stable look instead. Cofferdam: the preset bots' faces come from the brand.
+  const looks: Partial<
+    Record<
+      string,
+      { shape: RobotHeadShape; color: string; trimColor?: string }
+    >
+  > = { ...BOT_AVATAR_LOOKS, ...COFFERDAM_BOT_LOOKS }
   const look =
-    (
-      BOT_AVATAR_LOOKS as Partial<
-        Record<string, (typeof BOT_AVATAR_LOOKS)[BotAvatarKind]>
-      >
-    )[avatar] ?? BOT_AVATAR_LOOKS[BOT_AVATARS[h % BOT_AVATARS.length]]
+    looks[avatar] ?? BOT_AVATAR_LOOKS[BOT_AVATARS[h % BOT_AVATARS.length]]
   return (
     <RobotHead
       ref={canvas}
       shape={look.shape}
       color={look.color}
+      trimColor={"trimColor" in look ? look.trimColor : undefined}
       state={STATE_FOR_STATUS[status]}
       size={size}
       interactive={interactive && !still}

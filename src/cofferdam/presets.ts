@@ -5,6 +5,7 @@
  */
 import type {
   ActionClass,
+  BotAvatarKind,
   ProactiveSettings,
   RulePolicy,
   Routine,
@@ -115,6 +116,11 @@ export function presetRoutines(def: PresetDef) {
       storageKey: `cofferdam_routine:${routine.name}`,
     })),
   ]
+}
+
+/** The brand's face for a preset bot (COFFERDAM_BOT_LOOKS in src/lib/types.ts). */
+export function presetAvatar(preset: Preset): BotAvatarKind {
+  return `cofferdam-${preset}`
 }
 
 export function isPreset(value: unknown): value is Preset {
