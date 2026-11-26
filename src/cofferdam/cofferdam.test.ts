@@ -74,6 +74,11 @@ import {
   OPS_SPEND_CONNECTION,
   OPS_ZKPASSPORT_CONNECTION,
   OPS_CERTIFICATE_CONNECTION,
+  OPS_CREDENTIALS_CONNECTION,
+  CREDENTIALS_COMMAND,
+  credentialsDue,
+  credentialsList,
+  parseExport,
   CERT_RENEW_COMMAND,
   certificateReport,
   opsCommentRefusal,
@@ -1542,13 +1547,19 @@ describe("Ops bot", () => {
 
   it("lists documents, issue reads, its comment, the watch issue, the bots' spend, the ZKPassport watch and the XMTP certificate, and no Lockkeeper", () => {
     const catalog = cofferdamCatalog(
-      { ...env, XMTP_CERTIFICATE: { status: async () => ({}) } },
+      {
+        ...env,
+        XMTP_CERTIFICATE: { status: async () => ({}) },
+        CREDENTIALS_INVENTORY: { get: async () => null },
+      },
       "ops"
     )
     expect(catalog.tools.map((t) => t.name).sort()).toEqual([
       "bots_spend",
       "comment",
       "create_issue",
+      "credentials_due",
+      "credentials_inventory",
       "get_issue",
       "list_issues",
       "read_doc",
@@ -1559,6 +1570,7 @@ describe("Ops bot", () => {
     ])
     expect(catalog.apps.map((a) => a.id).sort()).toEqual([
       OPS_CERTIFICATE_CONNECTION,
+      OPS_CREDENTIALS_CONNECTION,
       OPS_GITHUB_CONNECTION,
       OPS_SPEND_CONNECTION,
       OPS_ZKPASSPORT_CONNECTION,
@@ -1584,6 +1596,120 @@ describe("Ops bot", () => {
     const empty = cofferdamCatalog({}, "ops")
     expect(empty.tools).toEqual([])
     expect(empty.apps.every((a) => a.status === "failed")).toBe(true)
+  })
+
+  describe("the credential inventory (workspace decision 0099)", () => {
+    const NOW = Date.parse("2026-12-01T12:00:00Z")
+    const rec = (name: string, labels: Record<string, string>, annotations: Record<string, string>) => ({
+      name,
+      labels: { inventory: "v1", status: "active", ...labels },
+      annotations,
+    })
+    const doc = {
+      exportedAt: "2026-11-30T09:00:00Z",
+      records: [
+        rec("rec-expired", { owner: "founder", env: "prod" }, { expires: "2026-11-20", summary: "gone", "renew-how": "dashboard" }),
+        rec("rec-soon", {}, { expires: "2026-12-05" }),
+        rec("rec-month", {}, { expires: "2026-12-25" }),
+        rec("rec-far", {}, { expires: "2027-06-01" }),
+        rec("rec-rotation", {}, { expires: "never", created: "2025-12-15", rotation: "P365D" }),
+        rec("rec-short", {}, { expires: "2026-12-20", "remind-days": "7" }),
+        rec("rec-unknown", {}, { expires: "unknown" }),
+        rec("rec-never", {}, { expires: "never", rotation: "on-leak" }),
+        rec("rec-retired", { status: "retired" }, { expires: "2026-11-01" }),
+        rec("rec-planned", { status: "planned" }, { expires: "unknown" }),
+      ],
+    }
+
+    it("lists what is due by date, window and rotation, never retired or planned", () => {
+      const r = credentialsDue(parseExport(doc), NOW) as {
+        action: string
+        stale: boolean
+        due: { name: string; action: string; why: string; daysLeft: number }[]
+        unknownExpiry: number
+        unknownNames: string[]
+      }
+      expect(r.action).toBe("due")
+      expect(r.stale).toBe(false)
+      expect(r.due.map((d) => d.name)).toEqual(["rec-expired", "rec-soon", "rec-rotation", "rec-month"])
+      expect(r.due.map((d) => d.action)).toEqual(["expired", "urgent", "renew", "renew"])
+      expect(r.due.find((d) => d.name === "rec-rotation")!.why).toBe("rotation")
+      expect(r.unknownExpiry).toBe(1)
+      expect(r.unknownNames).toEqual(["rec-unknown"])
+    })
+
+    it("reports a stale or unreadable export", () => {
+      const stale = credentialsDue(parseExport({ ...doc, exportedAt: "2026-10-01T00:00:00Z" }), NOW) as { stale: boolean }
+      expect(stale.stale).toBe(true)
+      // A quiet month is normal: the export is rewritten on changes only.
+      const quiet = credentialsDue(parseExport({ ...doc, exportedAt: "2026-11-01T00:00:00Z" }), NOW) as { stale: boolean }
+      expect(quiet.stale).toBe(false)
+      expect(credentialsDue(parseExport("not json")).action).toBe("unreadable")
+      expect(credentialsDue(parseExport({ records: "x" })).action).toBe("unreadable")
+      expect(String((credentialsDue(null) as { note: string }).note)).toContain(CREDENTIALS_COMMAND)
+    })
+
+    it("passes listed fields only, whatever the export carries", () => {
+      const odd = {
+        exportedAt: "2026-11-30T09:00:00Z",
+        payload: "SHOULD-NOT-APPEAR",
+        records: [
+          {
+            name: "rec-a",
+            value: "SHOULD-NOT-APPEAR",
+            labels: { inventory: "v1", env: "prod", tier: "SHOULD-NOT-APPEAR", owner: "Not A Label" },
+            annotations: { summary: "x".repeat(900), "secret-value": "SHOULD-NOT-APPEAR" },
+          },
+          { name: "bad name/../x", labels: {}, annotations: {} },
+        ],
+      }
+      const parsed = parseExport(odd)!
+      expect(JSON.stringify(parsed)).not.toContain("SHOULD-NOT-APPEAR")
+      expect(parsed.records.map((r) => r.name)).toEqual(["rec-a"])
+      expect(parsed.records[0]!.owner).toBeUndefined()
+      expect(parsed.records[0]!.summary!.length).toBe(400)
+    })
+
+    it("filters the records", () => {
+      const all = credentialsList(parseExport(doc), {}) as { count: number }
+      expect(all.count).toBe(10)
+      const retired = credentialsList(parseExport(doc), { status: "retired" }) as { records: { name: string }[] }
+      expect(retired.records.map((r) => r.name)).toEqual(["rec-retired"])
+      const q = credentialsList(parseExport(doc), { query: "GONE" }) as { records: { name: string }[] }
+      expect(q.records.map((r) => r.name)).toEqual(["rec-expired"])
+    })
+
+    it("reads the export over the KV binding, for the Ops bot only", async () => {
+      const kv = { get: async (key: string) => (key === "v1" ? JSON.stringify(doc) : null) }
+      const result = (await callCofferdamTool(
+        { ...env, CREDENTIALS_INVENTORY: kv },
+        "ops",
+        OPS_CREDENTIALS_CONNECTION,
+        "credentials_inventory",
+        { env: "prod" }
+      )) as { content: { text: string }[] }
+      expect(JSON.parse(result.content[0]!.text).records.map((r: { name: string }) => r.name)).toEqual(["rec-expired"])
+      await expect(
+        callCofferdamTool(env, "ops", OPS_CREDENTIALS_CONNECTION, "credentials_due", {})
+      ).rejects.toThrow(/KV binding to the credential inventory is missing/)
+      await expect(
+        callCofferdamTool({ ...env, CREDENTIALS_INVENTORY: kv }, "security", OPS_CREDENTIALS_CONNECTION, "credentials_due", {})
+      ).rejects.toThrow(/not available to this bot/)
+      await expect(
+        callCofferdamTool({ ...env, CREDENTIALS_INVENTORY: kv }, "ops", OPS_CREDENTIALS_CONNECTION, "set", {})
+      ).rejects.toThrow(/No credential inventory tool named set/)
+      expect(cofferdamToolReadOnly(OPS_CREDENTIALS_CONNECTION, "credentials_due")).toBe(true)
+      expect(cofferdamToolReadOnly(OPS_CREDENTIALS_CONNECTION, "credentials_inventory")).toBe(true)
+      expect(presetHolds("engineering", OPS_CREDENTIALS_CONNECTION)).toBe(false)
+    })
+
+    it("reports due credentials in the weekday check-in, never renewing them", () => {
+      expect(OPS_ROUTINE.prompt).toMatch(/credentials_due/)
+      expect(OPS_ROUTINE.prompt).toMatch(/every check-in until it is renewed/)
+      expect(OPS_ROUTINE.prompt).toContain(CREDENTIALS_COMMAND)
+      expect(opsPolicy()).toMatch(/credentials_due, credentials_inventory: names, owners, where each value lives and dates, never a value/)
+      expect(opsPolicy()).toMatch(/you never rotate or renew anything/)
+    })
   })
 
   it("checks the XMTP certificate in every weekday check-in, never renewing it", () => {

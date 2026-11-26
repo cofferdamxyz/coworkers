@@ -863,7 +863,12 @@ sign-in after the deploy that carries it, never by hand:
   `CertificateStatus` entrypoint: its expiry, days left and names, never the
   certificate or its key; Caddy renews it itself, so the action `renew` under
   21 days, `urgent` at 7 or fewer, means its renewal is failing; `staging` for a
-  test certificate phones do not trust). No Lockkeeper, no billing credential, no ZKPassport code.
+  test certificate phones do not trust); the credential inventory's export
+  (`credentials_due`, `credentials_inventory`, over the KV binding
+  `CREDENTIALS_INVENTORY` to the namespace `credentials-inventory`, workspace
+  decision 0099: names, owners, where each value lives and dates, never a
+  value). No Lockkeeper, no billing credential, no credential for the
+  inventory, no ZKPassport code.
 - **Writes, each on an approval card, never in a background turn:** a comment
   on an `ops` issue (the daily note, the Monday checklist, an update on the
   watch issue); the ZKPassport watch issue itself (`create_issue`, title
@@ -875,12 +880,16 @@ sign-in after the deploy that carries it, never by hand:
   shell, scripts, the browser, email, managing bots.
 - **Routines:** "Daily ops check-in", weekdays 09:00 São Paulo, read-only
   (it calls `xmtp_certificate` and names a certificate under 21 days left in
-  every check-in until it is renewed);
+  every check-in until it is renewed, and `credentials_due`, naming an expired
+  or urgent credential in every check-in until it is renewed);
   "ZKPassport watch", every day 07:00 São Paulo, read-only (a move is told in
   chat; the issue waits for the founder).
 - Its connections (`cofferdam-ops-github`, `cofferdam-ops-spend`,
-  `cofferdam-ops-zkpassport`, `cofferdam-ops-certificate`) are listed only to
-  it. The certificate check needs no secret: deploy the XMTP backend with its
+  `cofferdam-ops-zkpassport`, `cofferdam-ops-certificate`,
+  `cofferdam-ops-credentials`) are listed only to it. The inventory reads need
+  no secret: the KV namespace (id `373c1660f46c4b17890a5f7af0948481`, created
+  2026-11-25 with the workspace deploy token) holds the export, written only
+  from the Mac. The certificate check needs no secret: deploy the XMTP backend with its
   `CertificateStatus` entrypoint (cofferdam-api `ebe4e0d` and later) before
   this Worker, since the service binding names it. The watch needs no new
   secret or App permission: it reads the runbook with the Ops App's Contents

@@ -216,6 +216,13 @@ export default defineConfig({
         worker: "cofferdam-xmtp-backend",
         exportName: "CertificateStatus",
       }),
+      // Cofferdam: the Ops bot reads the credential inventory's export
+      // (workspace decision 0099): metadata only, written by the workspace's
+      // scripts/secrets/inventory.sh; the bot holds no credential for the
+      // inventory itself, and its tools only read.
+      CREDENTIALS_INVENTORY: bindings.kv({
+        id: "373c1660f46c4b17890a5f7af0948481",
+      }),
     },
   },
 })

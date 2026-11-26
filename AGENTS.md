@@ -58,8 +58,14 @@ and the rest of this file (below the line) is upstream's own guide.
   and names only, `certificateReport` cuts the answer and names the action,
   `renew` under `CERT_RENEW_DAYS` (21), `urgent` at `CERT_URGENT_DAYS` (7), `staging`
   for a test certificate; Caddy renews it itself, so a reminder means renewal is failing;
-  checked in the weekday check-in); no Lockkeeper, no billing credential (Cofferdam OS stays
-  the meter), and never ZKPassport's code. A preset's further routines
+  checked in the weekday check-in); the credential inventory's export (workspace
+  decision 0099: `credentials_due` and `credentials_inventory`, over the KV binding
+  `CREDENTIALS_INVENTORY` to the namespace `credentials-inventory`, which the workspace's
+  `scripts/secrets/inventory.sh` writes after every change; metadata only, `parseExport`
+  keeps listed fields and drops the rest; due within 30 days or a record's `remind-days`,
+  `urgent` at 7, `stale` past 45 days; read in the weekday check-in); no Lockkeeper, no
+  billing credential (Cofferdam OS stays the meter), no credential for the inventory, and
+  never ZKPassport's code. A preset's further routines
   (`extraRoutines`) sync each under its own key (`presetRoutines`). The
   fixed values are in `config.ts`; `github-app.ts` mints per-repository,
   per-permission tokens for any App. Tests in `cofferdam.test.ts`.
@@ -116,7 +122,9 @@ and the rest of this file (below the line) is upstream's own guide.
   upstream Durable Object class still gets its `CLASS_HISTORY` entry upstream.
 - No `account_id` in any committed file: the account comes from the workspace
   `.envrc`. Access values, the owner email and the GitHub App id live in the
-  ignored `coworkers.deploy.json`. Secrets enter only through
+  ignored `coworkers.deploy.json`. One resource id is committed on purpose: the
+  `credentials-inventory` KV namespace id in `cloudflare.config.ts` (not a secret,
+  not an account id; the repository is private). Secrets enter only through
   `wrangler secret put` run by the founder (`DEPLOYMENT.md`), never a file in
   this tree, the chat or a command argument. Model provider keys live on the AI
   Gateway as Provider Keys, not on the Worker.

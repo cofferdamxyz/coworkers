@@ -74,6 +74,14 @@ export interface OpsEnv {
    * plain Fetcher, so `certificateBinding` checks for the RPC method.
    */
   XMTP_CERTIFICATE: unknown
+  /**
+   * Workers KV namespace `credentials-inventory` (workspace decision 0099):
+   * the credential inventory's export, metadata only, written by the
+   * workspace's `scripts/secrets/inventory.sh` after every change. The bot
+   * holds no credential for the inventory itself. Typed loosely:
+   * `credentialsStore` checks for `get`.
+   */
+  CREDENTIALS_INVENTORY: unknown
 }
 
 export type CofferdamEnv = Partial<
@@ -88,6 +96,7 @@ export const OPS_GITHUB_CONNECTION = "cofferdam-ops-github"
 export const OPS_SPEND_CONNECTION = "cofferdam-ops-spend"
 export const OPS_ZKPASSPORT_CONNECTION = "cofferdam-ops-zkpassport"
 export const OPS_CERTIFICATE_CONNECTION = "cofferdam-ops-certificate"
+export const OPS_CREDENTIALS_CONNECTION = "cofferdam-ops-credentials"
 
 /**
  * Each preset's connections: its GitHub App, and Lockkeeper or the hub's
@@ -102,6 +111,7 @@ export const PRESET_CONNECTIONS: Record<
     spend?: string
     zkpassport?: string
     certificate?: string
+    credentials?: string
   }
 > = {
   engineering: {
@@ -119,15 +129,21 @@ export const PRESET_CONNECTIONS: Record<
     spend: OPS_SPEND_CONNECTION,
     zkpassport: OPS_ZKPASSPORT_CONNECTION,
     certificate: OPS_CERTIFICATE_CONNECTION,
+    credentials: OPS_CREDENTIALS_CONNECTION,
     githubName: "GitHub (Ops App)",
   },
 }
 
 function connectionsOf(preset: Preset) {
   const c = PRESET_CONNECTIONS[preset]
-  return [c.github, c.lockkeeper, c.spend, c.zkpassport, c.certificate].filter(
-    Boolean
-  ) as string[]
+  return [
+    c.github,
+    c.lockkeeper,
+    c.spend,
+    c.zkpassport,
+    c.certificate,
+    c.credentials,
+  ].filter(Boolean) as string[]
 }
 
 export function isCofferdamConnection(connectionId: string) {
@@ -481,6 +497,43 @@ const CERTIFICATE_TOOL_DEFS: ToolDef[] = [
   },
 ]
 
+/** Within this many days of its date a credential is due (a record's remind-days overrides it). */
+export const CREDENTIALS_REMIND_DAYS = 30
+/** At or under this many days, renewing is urgent. */
+export const CREDENTIALS_URGENT_DAYS = 7
+/**
+ * An export older than this is reported as stale. The export is rewritten on
+ * every change only, so a quiet month is normal; past this it is worth a look.
+ */
+export const CREDENTIALS_STALE_DAYS = 45
+/** What the founder runs on the Mac (workspace docs/runbooks/credentials-inventory.md). */
+export const CREDENTIALS_COMMAND = "scripts/secrets/inventory.sh"
+
+/** The credential inventory: two reads of its value-free export. */
+const CREDENTIALS_TOOL_DEFS: ToolDef[] = [
+  {
+    name: "credentials_due",
+    description: `The credential inventory's due list (workspace decision 0099): every active credential expired or within its reminder window (${CREDENTIALS_REMIND_DAYS} days unless its record says otherwise), with its date, days left, action (expired, urgent at ${CREDENTIALS_URGENT_DAYS} days or fewer, renew), owner and how to renew; the count and names of active credentials whose expiry is unknown; and whether the export is stale. Names, places and dates only: the inventory holds no value. Reads only.`,
+    inputSchema: { type: "object", properties: {} },
+    readOnly: true,
+  },
+  {
+    name: "credentials_inventory",
+    description:
+      "The credential inventory's records, metadata only: name, what it grants, issuer and account, scopes, where code reads it, where the value lives (never the value), production or development, created, expiry, rotation, owner, status, how to renew and the last change. Optional filters narrow the list. Reads only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["active", "planned", "retired"] },
+        env: { type: "string", enum: ["prod", "dev", "test"] },
+        issuer: { type: "string", description: "For example cloudflare, github, google." },
+        query: { type: "string", description: "Text to find in a record's name or summary." },
+      },
+    },
+    readOnly: true,
+  },
+]
+
 const LOCKKEEPER_TOOL_DEFS: ToolDef[] = [
   {
     name: "brief",
@@ -647,6 +700,30 @@ export function cofferdamCatalog(
           }),
     })
   }
+  if (conn.credentials) {
+    const bound = credentialsBound(env)
+    if (bound) {
+      tools.push(
+        ...CREDENTIALS_TOOL_DEFS.map((t) => ({
+          ...t,
+          connectionId: conn.credentials!,
+          connectionName: "Credential inventory",
+        }))
+      )
+    }
+    apps.push({
+      id: conn.credentials,
+      name: "Credential inventory",
+      status: bound ? "ready" : "failed",
+      tools: CREDENTIALS_TOOL_DEFS.length,
+      ...(bound
+        ? {}
+        : {
+            error:
+              "Not configured: the KV binding to the credential inventory's export (CREDENTIALS_INVENTORY) is missing.",
+          }),
+    })
+  }
   return { apps, tools }
 }
 
@@ -666,7 +743,9 @@ export function cofferdamToolReadOnly(connectionId: string, name: string) {
           ? ZKPASSPORT_TOOL_DEFS
           : conn.certificate === connectionId
             ? CERTIFICATE_TOOL_DEFS
-            : LOCKKEEPER_TOOL_DEFS
+            : conn.credentials === connectionId
+              ? CREDENTIALS_TOOL_DEFS
+              : LOCKKEEPER_TOOL_DEFS
   return defs.find((t) => t.name === name)?.readOnly === true
 }
 
@@ -1534,6 +1613,23 @@ export async function callCofferdamTool(
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     }
   }
+  if (connectionId === conn.credentials) {
+    if (!CREDENTIALS_TOOL_DEFS.some((t) => t.name === name)) {
+      throw new Error(`No credential inventory tool named ${name}.`)
+    }
+    const store = credentialsStore(env)
+    if (!store) {
+      throw new Error("The KV binding to the credential inventory is missing.")
+    }
+    const doc = parseExport(await store.get("v1"))
+    const result =
+      name === "credentials_due"
+        ? credentialsDue(doc)
+        : credentialsList(doc, args)
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    }
+  }
   if (connectionId === conn.lockkeeper) {
     const repo = str(args, "repo")
     if (repo !== undefined) {
@@ -1548,6 +1644,190 @@ export async function callCofferdamTool(
   const result = await callGitHub(env, preset, name, args)
   return {
     content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+  }
+}
+
+// ── The credential inventory (workspace decision 0099) ────────────────
+
+/** The KV namespace holding the inventory's export, or null. */
+function credentialsStore(
+  env: CofferdamEnv
+): { get(key: string): Promise<string | null> } | null {
+  const b = env.CREDENTIALS_INVENTORY as { get?: unknown } | undefined
+  return b && typeof b.get === "function"
+    ? (b as { get(key: string): Promise<string | null> })
+    : null
+}
+
+/** Whether the deployment has the KV binding to the inventory's export. */
+export function credentialsBound(env: CofferdamEnv) {
+  return credentialsStore(env) !== null
+}
+
+const CREDENTIAL_LABELS = ["env", "issuer", "store", "owner", "status"] as const
+const CREDENTIAL_ANNOTATIONS = {
+  summary: "summary",
+  account: "account",
+  scopes: "scopes",
+  "read-by": "readBy",
+  "value-at": "valueAt",
+  created: "created",
+  expires: "expires",
+  rotation: "rotation",
+  "renew-how": "renewHow",
+  "last-change": "lastChange",
+  "remind-days": "remindDays",
+} as const
+
+/** One record, cut to its listed fields. */
+export type CredentialRecord = { name: string } & Partial<
+  Record<
+    | (typeof CREDENTIAL_LABELS)[number]
+    | (typeof CREDENTIAL_ANNOTATIONS)[keyof typeof CREDENTIAL_ANNOTATIONS],
+    string
+  >
+>
+
+type CredentialExport = { exportedAt?: string; records: CredentialRecord[] }
+
+/**
+ * The export as the bot may see it: listed fields only, short strings, names
+ * of the shape Secret Manager allows. Anything else is dropped, never passed
+ * through; an export of the wrong shape is null (unreadable).
+ */
+export function parseExport(raw: unknown): CredentialExport | null {
+  let doc: unknown = raw
+  if (typeof raw === "string") {
+    try {
+      doc = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (!doc || typeof doc !== "object") return null
+  const d = doc as { exportedAt?: unknown; records?: unknown }
+  if (!Array.isArray(d.records)) return null
+  const records: CredentialRecord[] = []
+  for (const r of d.records.slice(0, 500)) {
+    if (!r || typeof r !== "object") continue
+    const x = r as { name?: unknown; labels?: unknown; annotations?: unknown }
+    if (typeof x.name !== "string" || !/^[A-Za-z0-9_-]{1,255}$/.test(x.name)) continue
+    const rec: CredentialRecord = { name: x.name }
+    const labels = (x.labels && typeof x.labels === "object" ? x.labels : {}) as Record<string, unknown>
+    for (const k of CREDENTIAL_LABELS) {
+      const v = labels[k]
+      if (typeof v === "string" && /^[a-z0-9_-]{0,63}$/.test(v)) rec[k] = v
+    }
+    const annos = (x.annotations && typeof x.annotations === "object" ? x.annotations : {}) as Record<string, unknown>
+    for (const [k, out] of Object.entries(CREDENTIAL_ANNOTATIONS)) {
+      const v = annos[k]
+      if (typeof v === "string") rec[out] = v.slice(0, 400)
+    }
+    records.push(rec)
+  }
+  const exportedAt =
+    typeof d.exportedAt === "string" && !Number.isNaN(Date.parse(d.exportedAt))
+      ? d.exportedAt
+      : undefined
+  return { exportedAt, records }
+}
+
+const DAY_MS = 86_400_000
+const isDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v)
+const noon = (d: string) => Date.parse(`${d}T12:00:00Z`)
+
+/** The earlier of its expiry and its next rotation (created + rotation), or null. */
+function dueOf(r: CredentialRecord) {
+  const dates: { at: number; why: "expires" | "rotation" }[] = []
+  if (isDate(r.expires)) dates.push({ at: noon(r.expires!), why: "expires" })
+  const m = /^P(\d+)([DMY])$/.exec(r.rotation ?? "")
+  if (isDate(r.created) && m) {
+    const n = Number(m[1])
+    const days = m[2] === "D" ? n : m[2] === "M" ? n * 30.436875 : n * 365.2425
+    dates.push({ at: noon(r.created!) + days * DAY_MS, why: "rotation" })
+  }
+  const valid = dates.filter((d) => !Number.isNaN(d.at))
+  if (!valid.length) return null
+  return valid.reduce((a, b) => (b.at < a.at ? b : a))
+}
+
+function windowOf(r: CredentialRecord) {
+  const n = Number(r.remindDays)
+  return Number.isInteger(n) && n >= 1 && n <= 365 ? n : CREDENTIALS_REMIND_DAYS
+}
+
+/** The due list for the weekday check-in. */
+export function credentialsDue(doc: CredentialExport | null, now = Date.now()) {
+  if (!doc) {
+    return {
+      action: "unreadable" as const,
+      note: `The inventory's export could not be read: the founder runs ${CREDENTIALS_COMMAND} export on the Mac.`,
+    }
+  }
+  const active = doc.records.filter((r) => (r.status ?? "active") === "active")
+  const due = active
+    .map((r) => {
+      const d = dueOf(r)
+      if (!d) return null
+      const daysLeft = Math.floor((d.at - now) / DAY_MS)
+      if (daysLeft > windowOf(r)) return null
+      return {
+        name: r.name,
+        summary: r.summary,
+        owner: r.owner,
+        env: r.env,
+        date: new Date(d.at).toISOString().slice(0, 10),
+        why: d.why,
+        daysLeft,
+        action:
+          daysLeft < 0
+            ? ("expired" as const)
+            : daysLeft <= CREDENTIALS_URGENT_DAYS
+              ? ("urgent" as const)
+              : ("renew" as const),
+        renew: r.renewHow,
+      }
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+  const unknown = active.filter((r) => !isDate(r.expires) && r.expires !== "never")
+  const age = doc.exportedAt ? (now - Date.parse(doc.exportedAt)) / DAY_MS : Infinity
+  return {
+    action: due.length ? ("due" as const) : ("none" as const),
+    exportedAt: doc.exportedAt ?? null,
+    stale: age > CREDENTIALS_STALE_DAYS,
+    due,
+    unknownExpiry: unknown.length,
+    unknownNames: unknown.slice(0, 20).map((r) => r.name),
+    note: `Renewing is the founder's, on the Mac: ${CREDENTIALS_COMMAND} set <name> --why "rotated" created=<date> expires=<date>.`,
+  }
+}
+
+/** The records, filtered, cut to listed fields. */
+export function credentialsList(
+  doc: CredentialExport | null,
+  args: Record<string, unknown>
+) {
+  if (!doc) return credentialsDue(null)
+  const want = (k: string) => {
+    const v = args[k]
+    return typeof v === "string" && v.trim() ? v.trim().toLowerCase() : undefined
+  }
+  const [status, env, issuer, query] = ["status", "env", "issuer", "query"].map(want)
+  const records = doc.records.filter(
+    (r) =>
+      (!status || (r.status ?? "active") === status) &&
+      (!env || r.env === env) &&
+      (!issuer || r.issuer === issuer) &&
+      (!query ||
+        r.name.toLowerCase().includes(query) ||
+        (r.summary ?? "").toLowerCase().includes(query))
+  )
+  return {
+    exportedAt: doc.exportedAt ?? null,
+    count: records.length,
+    records: records.slice(0, 80),
+    ...(records.length > 80 ? { note: "First 80 shown: narrow with a filter." } : {}),
   }
 }
 
